@@ -176,26 +176,32 @@ test('finished phases show how long they took', async () => {
   const timed = {
     ...STATE,
     phase_times: {
-      sentences: { started_at: 1700000000, ended_at: 1700000180 },
-      test_set: { started_at: 1700000180, ended_at: 1700000900 },
-      theory: { started_at: 1700000900, ended_at: 1700003600 },
+      sentences: { started_at: 1700000000, ended_at: 1700000180,
+                   bedrock_dollars: 0.34, kiro_credits: 0 },
+      test_set: { started_at: 1700000180, ended_at: 1700000900,
+                  bedrock_dollars: 1.2, kiro_credits: 0 },
+      // 0.5 Bedrock + 6.5 credits x $0.04 = $0.76
+      theory: { started_at: 1700000900, ended_at: 1700003600,
+                bedrock_dollars: 0.5, kiro_credits: 6.5 },
     },
   };
-  mockFetch({ '/introspection': { ...INTROSPECTION, state: timed } });
+  mockFetch({ '/introspection': { ...INTROSPECTION, state: timed, dollars_per_credit: 0.04 } });
   render(<JobIntrospectionTab jobs={[JOB]} jobId="job-1" />);
   const phases = await screen.findByRole('list', { name: 'Build phases' });
   expect(within(phases).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
-    'Load sentences (3 minutes)',
-    'Generate test set (12 minutes)',
-    'Build theory (45 minutes)',
+    'Load sentences (3 minutes, $0.34)',
+    'Generate test set (12 minutes, $1.20)',
+    'Build theory (45 minutes, $0.76)',
     'Done',
   ]);
 });
 
 test('a phase still running, or with no recorded times, shows no duration', () => {
-  expect(phaseLabel('Build theory', { started_at: 10, ended_at: null })).toBe('Build theory');
-  expect(phaseLabel('Build theory', undefined)).toBe('Build theory');
-  expect(phaseLabel('Load sentences', { started_at: 0, ended_at: 30 })).toBe('Load sentences (<1 minute)');
+  expect(phaseLabel('Build theory', { started_at: 10, ended_at: null }, 0.04)).toBe('Build theory');
+  expect(phaseLabel('Build theory', undefined, 0.04)).toBe('Build theory');
+  // Recorded before phase spend was kept: duration only.
+  expect(phaseLabel('Load sentences', { started_at: 0, ended_at: 30 }, 0.04))
+    .toBe('Load sentences (<1 minute)');
 });
 
 test('the verified line grows with the build', () => {

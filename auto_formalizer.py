@@ -78,7 +78,9 @@ bedrock_agent_runtime = boto3.client("bedrock-agent-runtime",
 #        "raw_sentences": [str, ...],                  each sentence as written
 #        "standalone_sentences": [str | None, ...]}    its decontextualized
 #                                                      rewrite (None for FHIR)
-#   {"type": "phase", "phase": "test_set" | "theory"}
+#   {"type": "phase", "phase": "test_set" | "theory", "spent": {...}}
+#        spent = the build's running totals: {"bedrock_dollars": float
+#        (estimated from token counts), "kiro_credits": float}
 #   {"type": "test_set", "qs_and_as": [[q, a], ...], "n_required": int}
 #   {"type": "session_start", "session": n, "kind": k}  k = build | feedback
 #                                                         | stall_resume
@@ -87,7 +89,8 @@ bedrock_agent_runtime = boto3.client("bedrock-agent-runtime",
 #        "valid": bool, "n_correct": int, "correct_questions": [q, ...],
 #        "theory": str | None}                        after re-verification
 #   {"type": "end", "ok": bool, "theory": str | None, "n_correct": int,
-#        "n_required": int, "correct_questions": [q, ...], "duration": secs}
+#        "n_required": int, "correct_questions": [q, ...], "duration": secs,
+#        "spent": {...}}
 _progress_cb: Optional[Callable[[dict], None]] = None
 
 
@@ -95,6 +98,12 @@ def set_progress_cb(cb: Optional[Callable[[dict], None]]) -> None:
     """Install (or clear, with None) the build progress callback."""
     global _progress_cb  # pylint: disable=global-statement
     _progress_cb = cb
+
+
+def spent_so_far(stats: Statistics) -> dict:
+    """ A build's running spend, for the progress events. """
+    return dict(bedrock_dollars=round(stats.total_inference_cost, 6),
+                kiro_credits=round(stats.kiro_credits, 6))
 
 
 def report_progress(event: dict) -> None:
@@ -1061,7 +1070,7 @@ def formalize_document() -> dict:
         runs_path = generate_uniq_run_file(g.p.subject_ids)
         print(f"fd: {len(sentences):,} sentences; writing to {runs_path}")
 
-        report_progress(dict(type="phase", phase="test_set"))
+        report_progress(dict(type="phase", phase="test_set", spent=spent_so_far(stats)))
         qs_and_as = generate_test_set(sentences, num_qs_and_as(len(sentences)),
                                       stats)
         if len(qs_and_as) < 3:
@@ -1072,7 +1081,7 @@ def formalize_document() -> dict:
                              qs_and_as=[list(qa) for qa in qs_and_as],
                              n_required=n_required))
 
-        report_progress(dict(type="phase", phase="theory"))
+        report_progress(dict(type="phase", phase="theory", spent=spent_so_far(stats)))
         vu = kiro_create_valid_useful_theory(
             sentences=sentences, qs_and_as=qs_and_as,
             n_correct_answers_reqd=n_required, stats=stats,
@@ -1089,7 +1098,7 @@ def formalize_document() -> dict:
                              n_correct=len(vu["correctly_answered_questions"]),
                              n_required=vu["n_correct_answers_reqd"],
                              correct_questions=list(vu["correctly_answered_questions"]),
-                             duration=duration))
+                             duration=duration, spent=spent_so_far(stats)))
         print(f"Statistics: {stats.summary()}")
         summary = dict(runs_path=str(runs_path), ok=ok,
                        num_sentences=len(sentences), num_qs=len(qs_and_as),

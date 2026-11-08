@@ -528,3 +528,25 @@ def test_a_failed_build_closes_the_phase_it_failed_in(rec):
     times = state_of(s3)["phase_times"]
     assert all(t["ended_at"] is not None for t in times.values())
     assert set(times) == {"sentences", "test_set", "theory"}
+
+
+def test_each_finished_phase_records_what_it_spent():
+    ticks = iter(range(1000, 2000, 10))
+    s3 = FakeS3()
+    r = ji.Recorder(s3, "bucket", JOB, clock=lambda: next(ticks), start_thread=False)
+    r.handle(dict(type="start", sentences=["s"]))
+    r.handle(dict(type="phase", phase="test_set",
+                  spent={"bedrock_dollars": 0.34, "kiro_credits": 0.0}))
+    r.handle(dict(type="phase", phase="theory",
+                  spent={"bedrock_dollars": 0.90, "kiro_credits": 0.0}))
+    times = state_of(s3)["phase_times"]
+    assert times["sentences"]["bedrock_dollars"] == pytest.approx(0.34)
+    assert times["test_set"]["bedrock_dollars"] == pytest.approx(0.56)
+    assert times["theory"]["ended_at"] is None and "bedrock_dollars" not in times["theory"]
+    r.handle(dict(type="end", ok=True, theory="(t)", n_correct=1, n_required=1,
+                  correct_questions=[], duration=9.0,
+                  spent={"bedrock_dollars": 1.40, "kiro_credits": 6.5}))
+    theory = state_of(s3)["phase_times"]["theory"]
+    assert theory["bedrock_dollars"] == pytest.approx(0.50)
+    assert theory["kiro_credits"] == pytest.approx(6.5)
+    assert all("spent_at_start" not in t for t in state_of(s3)["phase_times"].values())

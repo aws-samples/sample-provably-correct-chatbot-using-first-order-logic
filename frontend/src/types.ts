@@ -132,6 +132,10 @@ export type SessionKind = 'build' | 'feedback' | 'stall_resume';
 export interface PhaseTime {
   started_at: number;
   ended_at: number | null;
+  // What a finished phase spent: Bedrock (estimated from token counts) and
+  // kiro-cli credits. Absent while it runs and for older builds.
+  bedrock_dollars?: number;
+  kiro_credits?: number;
 }
 
 export interface SessionRecord {
@@ -213,6 +217,8 @@ export interface JobIntrospection {
   note: string | null;
   // kiro-cli spend; null before any session finished.
   cost: KiroCost | null;
+  // $ per kiro-cli credit, for pricing phase spend.
+  dollars_per_credit?: number;
 }
 
 // Response of GET /api/jobs/{id}/introspection/kiro: the build's kiro-cli

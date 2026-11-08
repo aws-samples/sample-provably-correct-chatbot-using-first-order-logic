@@ -755,10 +755,11 @@ def job_introspection(job_id: str) -> Optional[dict]:
             note = f"Could not read the recorded progress ({ex})."
     if state is None and note is None:
         note = "No progress was recorded for this job (it failed before the build started)."
+    rate = _introspection.dollars_per_credit()
     return {"job": job, "available": state is not None, "state": state,
             "theory": theory, "qas": qas, "note": note,
-            "cost": _introspection.cost_summary(
-                state, _introspection.dollars_per_credit())}
+            "dollars_per_credit": rate,
+            "cost": _introspection.cost_summary(state, rate)}
 
 
 def _build_log_source(job_id: str):

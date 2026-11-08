@@ -91,7 +91,11 @@ class Recorder:
             "status": RUNNING, "phase": "sentences", "started_at": now,
             # When each phase started and ended (epoch seconds; ended is None
             # while it runs). The build starts in "sentences".
-            "phase_times": {"sentences": {"started_at": now, "ended_at": None}},
+            # A finished phase also has bedrock_dollars and kiro_credits:
+            # what it spent.
+            "phase_times": {"sentences": {
+                "started_at": now, "ended_at": None,
+                "spent_at_start": {"bedrock_dollars": 0.0, "kiro_credits": 0.0}}},
             "finished_at": None, "duration": None,
             "n_sentences": None, "sentences": [],
             "raw_sentences": [], "standalone_sentences": [],
@@ -135,20 +139,32 @@ class Recorder:
                           standalone_sentences=standalone,
                           n_sentences=len(raw) or len(sentences))
 
-    def _enter_phase(self, phase: str, now: int) -> None:
-        """End the current phase at `now` and start `phase` (unless done)."""
+    def _enter_phase(self, phase: str, now: int,
+                     spent: Optional[dict] = None) -> None:
+        """
+        End the current phase at `now` and start `phase` (unless done).
+        `spent` is the build's running spend at this moment; a phase's own
+        spend is the difference between its end and its start.
+        """
         times = self.state.setdefault("phase_times", {})
         current = times.get(self.state["phase"])
         if current is not None and current.get("ended_at") is None \
                 and self.state["phase"] != phase:
             current["ended_at"] = now
+            start = current.pop("spent_at_start", None)
+            if spent is not None and start is not None:
+                for key in ("bedrock_dollars", "kiro_credits"):
+                    current[key] = max(0.0, float(spent.get(key) or 0.0)
+                                       - float(start.get(key) or 0.0))
         self.state["phase"] = phase
         if phase != "done" and phase not in times:
-            times[phase] = {"started_at": now, "ended_at": None}
+            times[phase] = {"started_at": now, "ended_at": None,
+                            "spent_at_start": dict(spent) if spent is not None
+                            else {"bedrock_dollars": 0.0, "kiro_credits": 0.0}}
 
     def _phase(self, event: dict, now: int) -> None:
         if event.get("phase") in PHASES:
-            self._enter_phase(event["phase"], now)
+            self._enter_phase(event["phase"], now, event.get("spent"))
 
     def _test_set(self, event: dict, now: int) -> List[tuple]:
         self._qas = [list(qa) for qa in event.get("qs_and_as") or [] if len(qa) >= 2]
@@ -192,7 +208,7 @@ class Recorder:
 
     def _end(self, event: dict, now: int) -> List[tuple]:
         ok = bool(event.get("ok"))
-        self._enter_phase("done", now)
+        self._enter_phase("done", now, event.get("spent"))
         self.state.update(status=SUCCEEDED if ok else FAILED,
                           finished_at=now, duration=event.get("duration"),
                           n_correct=event.get("n_correct"),

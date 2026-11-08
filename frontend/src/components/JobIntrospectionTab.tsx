@@ -8,13 +8,14 @@ import {
   Job,
   JobIntrospection,
   JobLogs,
+  PhaseTime,
   SessionKind,
   SessionRecord,
   TestSet,
 } from '../types';
 import { buildLogsDownloadUrl, fetchBuildLogs, fetchJobIntrospection } from '../api';
 import { KiroLiveView } from './KiroLiveView';
-import { formatCost, formatDuration, formatSessionCost } from '../kiroCost';
+import { formatCost, formatDollars, formatDuration, formatSessionCost } from '../kiroCost';
 
 interface JobIntrospectionTabProps {
   jobs: Job[];
@@ -72,16 +73,22 @@ export function buildStatus(state: IntrospectionState, job: Job): string {
 }
 
 /**
- * A phase's label in the stepper: "Load sentences (3 minutes)" once the
- * phase has ended, the plain label before that (or when the build was
- * recorded before phase times were kept).
+ * A phase's label in the stepper: "Load sentences (3 minutes, $0.34)" once
+ * the phase has ended, the plain label before that. The cost is its Bedrock
+ * spend plus its kiro-cli credits at `dollarsPerCredit`; it is left out for
+ * builds recorded before phase spend was kept (or with no rate).
  */
 export function phaseLabel(
   label: string,
-  time: { started_at: number; ended_at: number | null } | undefined
+  time: PhaseTime | undefined,
+  dollarsPerCredit?: number | null
 ): string {
   if (!time || time.ended_at == null) return label;
-  return `${label} (${formatDuration(time.ended_at - time.started_at)})`;
+  const parts = [formatDuration(time.ended_at - time.started_at)];
+  if (time.bedrock_dollars != null && dollarsPerCredit != null) {
+    parts.push(formatDollars(time.bedrock_dollars + (time.kiro_credits ?? 0) * dollarsPerCredit));
+  }
+  return `${label} (${parts.join(', ')})`;
 }
 
 /** e.g. "41/50 verified (40 needed)" once a session has been verified. */
@@ -158,6 +165,7 @@ export function JobIntrospectionTab({ jobs, jobId }: JobIntrospectionTabProps) {
       {data && state && (
         <>
           <BuildSummary state={state} job={data.job} costText={cost && formatCost(cost)}
+            dollarsPerCredit={data.dollars_per_credit ?? cost?.dollars_per_credit ?? null}
             nowSecs={nowSecs} />
           <SessionsTable
             sessions={state.sessions}
@@ -203,11 +211,13 @@ function BuildSummary({
   state,
   job,
   costText,
+  dollarsPerCredit,
   nowSecs,
 }: {
   state: IntrospectionState;
   job: Job;
   costText: string | null;
+  dollarsPerCredit: number | null;
   nowSecs: number;
 }) {
   const status = buildStatus(state, job);
@@ -236,7 +246,9 @@ function BuildSummary({
                 className={done ? 'build-phase done' : here ? 'build-phase current' : 'build-phase'}
                 aria-current={here ? 'step' : undefined}
               >
-                {p.key === 'done' ? p.label : phaseLabel(p.label, state.phase_times?.[p.key])}
+                {p.key === 'done'
+                  ? p.label
+                  : phaseLabel(p.label, state.phase_times?.[p.key], dollarsPerCredit)}
               </li>
             );
           })}
