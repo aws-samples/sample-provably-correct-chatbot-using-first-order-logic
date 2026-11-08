@@ -1013,24 +1013,6 @@
   margin-top: 12px;
 }
 
-/* Raw vs de-contextualized sentences, fitted to the panel width. In a fixed
-   layout only the # column is sized; the two text columns get no width, so
-   they split what is left (padding included) exactly in half and the table
-   never grows wider than its container, whatever the sentences' lengths. */
-.sentences-table {
-  table-layout: fixed;
-  width: 100%;
-}
-
-.sentences-table th:nth-child(2),
-.sentences-table td:nth-child(2),
-.sentences-table th:last-child,
-.sentences-table td:last-child {
-  width: auto;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
 /* Live kiro-cli view: a scrolling box of fixed height, so "follow the newest
    line" has something to scroll. */
 .kiro-live {
@@ -1153,6 +1135,27 @@
 .unit-qas-table td:last-child {
   width: 7em;
   white-space: nowrap;
+}
+
+/* Raw vs de-contextualized sentences, fitted to the panel width. In a fixed
+   layout only the # column is sized; the two text columns get no width, so
+   they split what is left (padding included) exactly in half and the table
+   never grows wider than its container, whatever the sentences' lengths.
+   These rules must beat the generic .unit-qas-table last-column rule above
+   (width 7em, nowrap, which put every rewrite on one line and made the table
+   scroll sideways), so they are more specific AND come after it. */
+.unit-qas-table.sentences-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.unit-qas-table.sentences-table th:nth-child(2),
+.unit-qas-table.sentences-table td:nth-child(2),
+.unit-qas-table.sentences-table th:last-child,
+.unit-qas-table.sentences-table td:last-child {
+  width: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .qa-correct {
