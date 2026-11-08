@@ -379,3 +379,103 @@ def test_module_doctests():
     import doctest
     result = doctest.testmod(ji)
     assert result.attempted > 0 and result.failed == 0
+
+
+# --- live kiro-cli view ---------------------------------------------------------
+class StreamLogs:
+    """A growing CloudWatch stream: honours startTime, the kc/kcvut filter and paging."""
+
+    def __init__(self, page_size=1000):
+        self.events = []
+        self.page_size = page_size
+        self.calls = []
+
+    def add(self, ts, message):
+        self.events.append({"timestamp": ts, "eventId": f"e{len(self.events)}",
+                            "message": message})
+
+    def filter_log_events(self, **kw):
+        self.calls.append(kw)
+        assert kw["filterPattern"] == ji.KIRO_FILTER
+        hits = [e for e in self.events
+                if kw["startTime"] <= e["timestamp"] <= kw["endTime"]
+                and ("kc:" in e["message"] or "kcvut:" in e["message"])]
+        start = int(kw.get("nextToken", 0))
+        resp = {"events": hits[start:start + self.page_size]}
+        if start + self.page_size < len(hits):
+            resp["nextToken"] = str(start + self.page_size)
+        return resp
+
+
+def test_kiro_tail_first_load_then_only_new_lines():
+    logs = StreamLogs()
+    logs.add(100, "gdsoq: generating")
+    logs.add(200, "kc: $ kiro-cli chat --no-interactive --agent theory-formalizer")
+    logs.add(200, "kc: ● Reading sentences.txt")          # same millisecond
+    logs.add(300, "a test question mentioning kc: inline")  # not a kiro line
+    out = ji.kiro_log_tail(logs, "g", "s", 0, 10_000)
+    assert out["lines"] == ["kc: $ kiro-cli chat --no-interactive --agent theory-formalizer",
+                            "kc: ● Reading sentences.txt"]
+    assert out["omitted"] == 0 and out["incomplete"] is False and out["note"] is None
+    # Nothing new: no lines, and the cursor holds its place.
+    again = ji.kiro_log_tail(logs, "g", "s", 0, 10_000, cursor=out["cursor"])
+    assert again["lines"] == [] and again["cursor"] == out["cursor"]
+    # New lines, including one in the same millisecond as the last one read.
+    logs.add(300, "kcvut: attempt #1 verified: valid=True correct=40/55 needed")
+    logs.add(400, "kc: $ kiro-cli chat --no-interactive --resume")
+    newer = ji.kiro_log_tail(logs, "g", "s", 0, 10_000, cursor=again["cursor"])
+    assert newer["lines"] == ["kcvut: attempt #1 verified: valid=True correct=40/55 needed",
+                              "kc: $ kiro-cli chat --no-interactive --resume"]
+    assert logs.calls[-1]["startTime"] == 300  # reads from the cursor, not the start
+
+
+def test_kiro_tail_same_millisecond_lines_are_neither_lost_nor_repeated():
+    logs = StreamLogs()
+    logs.add(500, "kc: one")
+    first = ji.kiro_log_tail(logs, "g", "s", 0, 10_000)
+    logs.add(500, "kc: two")  # logged later, same timestamp
+    second = ji.kiro_log_tail(logs, "g", "s", 0, 10_000, cursor=first["cursor"])
+    assert second["lines"] == ["kc: two"]
+    assert ji.kiro_log_tail(logs, "g", "s", 0, 10_000, cursor=second["cursor"])["lines"] == []
+
+
+def test_kiro_tail_first_load_keeps_the_newest_lines():
+    logs = StreamLogs()
+    for i in range(10):
+        logs.add(i, f"kc: line {i}")
+    out = ji.kiro_log_tail(logs, "g", "s", 0, 10_000, limit=3)
+    assert out["lines"] == ["kc: line 7", "kc: line 8", "kc: line 9"] and out["omitted"] == 7
+
+
+def test_kiro_tail_catches_up_across_calls_at_the_page_cap(monkeypatch):
+    monkeypatch.setattr(ji, "MAX_LOG_PAGES", 2)
+    logs = StreamLogs(page_size=2)
+    for i in range(7):
+        logs.add(i, f"kc: {i}")
+    seen, cursor = [], None
+    for _ in range(5):
+        out = ji.kiro_log_tail(logs, "g", "s", 0, 10_000, cursor=cursor)
+        seen += out["lines"]
+        cursor = out["cursor"]
+        if not out["incomplete"]:
+            break
+    assert seen == [f"kc: {i}" for i in range(7)]  # every line once, in order
+
+
+def test_kiro_tail_without_output_says_why():
+    out = ji.kiro_log_tail(StreamLogs(), "g", "s", 0, 10_000)
+    assert out["lines"] == [] and out["cursor"] is None and "No kiro-cli output yet" in out["note"]
+
+
+def test_store_kiro_tail_uses_the_builder_stream(store_env, monkeypatch):
+    store, _ = store_env
+    monkeypatch.setattr(store, "BUILDER_LOG_GROUP", "")
+    assert store.kiro_log_tail(JOB, cursor="5:x")["cursor"] == "5:x"  # no stream: cursor kept
+    monkeypatch.setattr(store, "BUILDER_LOG_GROUP", "builder-group")
+    monkeypatch.setattr(store, "BUILDER_LOG_STREAM_PREFIX", "chatbot-builder")
+    logs = StreamLogs()
+    logs.add(200_000, "kc: hello")
+    monkeypatch.setattr(store, "_logs", lambda: logs)
+    out = store.kiro_log_tail(JOB)
+    assert out["lines"] == ["kc: hello"]
+    assert logs.calls[0]["logStreamNames"] == ["chatbot-builder/builder/abc123"]

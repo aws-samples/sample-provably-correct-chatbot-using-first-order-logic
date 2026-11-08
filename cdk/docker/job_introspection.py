@@ -397,6 +397,102 @@ def build_logs(logs, log_group: str, stream: str, start_ms: int, end_ms: int,
                 note=note, total_lines=total, omitted=max(0, omitted))
 
 
+# --- Live kiro-cli view ------------------------------------------------------
+# The kiro-cli session transcript (kiro_formalizer prints it with a `kc: `
+# prefix) and the harness's verdicts between sessions (`kcvut: `). CloudWatch
+# narrows to lines containing either term; the regex then keeps only lines
+# that START with one, so a test question quoting "kc:" is not mistaken for one.
+KIRO_FILTER = '?"kc:" ?"kcvut:"'
+_KIRO_LINE_RE = re.compile(r"^(kc|kcvut): ")
+MAX_KIRO_LINES = 2000
+
+
+def encode_cursor(ts: int, event_ids) -> str:
+    """
+    A read position: the newest timestamp read and the ids of the events read
+    at exactly that timestamp (several events can share a millisecond).
+
+    >>> encode_cursor(1700, ["b", "a"])
+    '1700:a,b'
+    """
+    return f"{int(ts)}:{','.join(sorted(event_ids))}"
+
+
+def decode_cursor(cursor: Optional[str]):
+    """
+    (timestamp, ids) from encode_cursor, or (None, set()) for none or junk.
+
+    >>> ts, ids = decode_cursor("1700:a,b")
+    >>> ts, sorted(ids)
+    (1700, ['a', 'b'])
+    >>> decode_cursor("nonsense")
+    (None, set())
+    """
+    if not cursor:
+        return None, set()
+    ts, _, ids = cursor.partition(":")
+    try:
+        return int(ts), {i for i in ids.split(",") if i}
+    except ValueError:
+        return None, set()
+
+
+def kiro_log_tail(logs, log_group: str, stream: str, start_ms: int, end_ms: int,
+                  cursor: Optional[str] = None, limit: int = MAX_KIRO_LINES,
+                  clock: Callable[[], float] = time.monotonic) -> dict:
+    """
+    The kiro-cli lines of a build log newer than `cursor`, for the live view.
+
+    Without a cursor it returns the newest `limit` of them (the view's first
+    load); with one, only what was logged since. Returns lines, the cursor
+    for the next call (None until any line was read), omitted (older lines
+    beyond `limit` that were not returned) and incomplete (the page or time
+    cap was hit; the cursor marks how far it got, so the next call carries on
+    from there and nothing is skipped).
+    """
+    after_ts, seen = decode_cursor(cursor)
+    last_ts, last_ids = after_ts, set(seen)
+    lines: deque = deque(maxlen=max(1, limit))
+    omitted, pages, token, incomplete = 0, 0, None, False
+    deadline = clock() + MAX_LOG_SECONDS
+    begin = start_ms if after_ts is None else max(start_ms, after_ts)
+    while True:
+        kwargs = dict(logGroupName=log_group, logStreamNames=[stream],
+                      startTime=begin, endTime=end_ms, limit=10000,
+                      filterPattern=KIRO_FILTER)
+        if token:
+            kwargs["nextToken"] = token
+        resp = logs.filter_log_events(**kwargs)
+        pages += 1
+        for ev in resp.get("events", []):
+            ts, eid = int(ev.get("timestamp", 0)), str(ev.get("eventId", ""))
+            if after_ts is not None and (ts < after_ts or (ts == after_ts and eid in seen)):
+                continue
+            if last_ts is None or ts > last_ts:
+                last_ts, last_ids = ts, {eid}
+            elif ts == last_ts:
+                last_ids.add(eid)
+            msg = ev.get("message", "").rstrip("\n")
+            if _KIRO_LINE_RE.match(msg):
+                if len(lines) == lines.maxlen:
+                    omitted += 1
+                lines.append(msg)
+        token = resp.get("nextToken")
+        if not token:
+            break
+        if pages >= MAX_LOG_PAGES or clock() >= deadline:
+            incomplete = True
+            break
+    note = None
+    if incomplete:
+        note = "Catching up with a long log; newer lines follow on the next refresh."
+    elif last_ts is None:
+        note = "No kiro-cli output yet: the first session starts after the test set is ready."
+    return dict(lines=list(lines),
+                cursor=None if last_ts is None else encode_cursor(last_ts, last_ids),
+                omitted=omitted, incomplete=incomplete, note=note)
+
+
 def iter_build_log_text(logs, log_group: str, stream: str, start_ms: int,
                         end_ms: int):
     """

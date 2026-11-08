@@ -612,6 +612,21 @@ async def api_job_build_logs(job_id: str, head: int = 500, tail: int = 1500,
     return store.build_logs(job_id, head=head, tail=tail)
 
 
+@app.get("/api/jobs/{job_id}/introspection/kiro")
+async def api_job_kiro_log(job_id: str, cursor: str = "", limit: int = 2000,
+                           user: dict = Depends(require_auth)) -> dict:
+    """
+    The live kiro-cli view: the build's kiro-cli transcript lines (and the
+    harness's verdicts between sessions) newer than `cursor`. The first call
+    (no cursor) returns the newest `limit` lines; each response carries the
+    cursor for the next call, so a refresh reads only what is new.
+    """
+    if store.get_job(job_id) is None:
+        raise HTTPException(status_code=404, detail="job not found")
+    limit = max(1, min(int(limit), 5000))
+    return store.kiro_log_tail(job_id, cursor=cursor or None, limit=limit)
+
+
 @app.get("/api/jobs/{job_id}/introspection/logs.txt")
 async def api_job_build_logs_download(job_id: str,
                                       user: dict = Depends(require_auth)):

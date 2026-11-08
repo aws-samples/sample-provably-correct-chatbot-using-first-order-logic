@@ -10,6 +10,7 @@ import {
   DocType,
   SamplePatient,
   JobIntrospection,
+  KiroLog,
   BuildParams,
   BuildParamSpec,
 } from './types';
@@ -240,6 +241,14 @@ export function fetchBuildLogs(id: string, head = 500, tail = 1500): Promise<Job
   return getJson(
     `/api/jobs/${encodeURIComponent(id)}/introspection/logs?head=${head}&tail=${tail}`
   );
+}
+
+// The live kiro-cli view: kiro-cli lines newer than `cursor` (the newest
+// `limit` of them when there is no cursor yet).
+export function fetchKiroLog(id: string, cursor: string | null, limit = 2000): Promise<KiroLog> {
+  const q = new URLSearchParams({ limit: String(limit) });
+  if (cursor) q.set('cursor', cursor);
+  return getJson(`/api/jobs/${encodeURIComponent(id)}/introspection/kiro?${q}`);
 }
 
 // Download URL for EVERY line of the build's log, as a .log text file.

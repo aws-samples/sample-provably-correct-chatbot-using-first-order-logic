@@ -10,6 +10,7 @@ import {
   TestSet,
 } from '../types';
 import { buildLogsDownloadUrl, fetchBuildLogs, fetchJobIntrospection } from '../api';
+import { KiroLiveView } from './KiroLiveView';
 import { formatCost, formatDuration, formatSessionCost } from '../kiroCost';
 
 interface JobIntrospectionTabProps {
@@ -19,12 +20,13 @@ interface JobIntrospectionTabProps {
   jobId: string;
 }
 
-export type BuildView = 'sentences' | 'qas' | 'theory' | 'logs';
+export type BuildView = 'sentences' | 'qas' | 'theory' | 'kiro' | 'logs';
 
 const VIEWS: { key: BuildView; label: string }[] = [
   { key: 'sentences', label: 'Sentences' },
   { key: 'qas', label: 'Test set' },
   { key: 'theory', label: 'Theory' },
+  { key: 'kiro', label: 'kiro-cli' },
   { key: 'logs', label: 'Logs' },
 ];
 
@@ -78,8 +80,8 @@ export function verifiedLine(state: IntrospectionState): string | null {
  * A per-job tab: the progress of one build. A build formalizes the whole
  * document in one unit of work, so the tab shows its phases, each kiro-cli
  * session (with its cost and how many test questions the harness verified
- * after it), and four views: the sentences, the test set, the latest
- * verified theory and the build log. A running build refreshes every few
+ * after it), and five views: the sentences, the test set, the latest
+ * verified theory, a live tail of the kiro-cli sessions and the build log. A running build refreshes every few
  * seconds.
  */
 export function JobIntrospectionTab({ jobs, jobId }: JobIntrospectionTabProps) {
@@ -172,6 +174,7 @@ export function JobIntrospectionTab({ jobs, jobId }: JobIntrospectionTabProps) {
             {view === 'sentences' && <SentencesView sentences={state.sentences} />}
             {view === 'qas' && <TestSetView qas={data.qas} />}
             {view === 'theory' && <TheoryView theory={data.theory} state={state} />}
+            {view === 'kiro' && <KiroLiveView jobId={data.job.id} live={live} />}
             {view === 'logs' && <LogsView jobId={data.job.id} live={live} />}
           </div>
         </>

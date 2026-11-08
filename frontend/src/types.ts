@@ -197,3 +197,17 @@ export interface JobIntrospection {
   // kiro-cli spend; null before any session finished.
   cost: KiroCost | null;
 }
+
+// Response of GET /api/jobs/{id}/introspection/kiro: the build's kiro-cli
+// transcript lines ("kc: ...") and the harness's verdicts between sessions
+// ("kcvut: ...") newer than the cursor sent.
+export interface KiroLog {
+  lines: string[];
+  // Pass back on the next call to get only newer lines (null until any line).
+  cursor: string | null;
+  // Older lines not returned on a first load (beyond its limit).
+  omitted: number;
+  // The read hit its page/time cap; the next call carries on from the cursor.
+  incomplete: boolean;
+  note: string | null;
+}

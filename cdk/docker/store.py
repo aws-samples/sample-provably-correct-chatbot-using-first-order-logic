@@ -790,6 +790,24 @@ def build_logs(job_id: str, head: int = 500, tail: int = 1500) -> dict:
                 "total_lines": 0, "omitted": 0}
 
 
+def kiro_log_tail(job_id: str, cursor: Optional[str] = None,
+                  limit: int = _introspection.MAX_KIRO_LINES) -> dict:
+    """The build's kiro-cli lines newer than `cursor` (the live kiro-cli view)."""
+    source, note = _build_log_source(job_id)
+    if source is None:
+        return {"lines": [], "cursor": cursor, "omitted": 0,
+                "incomplete": False, "note": note}
+    stream, start_ms, end_ms, _item = source
+    try:
+        return _introspection.kiro_log_tail(
+            _logs(), BUILDER_LOG_GROUP, stream, start_ms, end_ms,
+            cursor=cursor, limit=limit)
+    except Exception as ex:  # pylint: disable=broad-except
+        # Keep the caller's cursor so the next refresh retries from the same place.
+        return {"lines": [], "cursor": cursor, "omitted": 0, "incomplete": False,
+                "note": f"Could not read CloudWatch logs ({ex})."}
+
+
 def build_log_download(job_id: str):
     """
     (filename, text-chunk iterator) with EVERY line of the build's log, for
