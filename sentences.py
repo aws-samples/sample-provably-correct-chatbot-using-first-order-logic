@@ -173,9 +173,18 @@ class TextDocument(Document):
 
     def sentences(self) -> List[Sentence]:
         """
-        Return all standlone Sentences in this document
+        Return all standalone Sentences in this document, each paired with the
+        rewrite at the same position. (Pairing by position, not by looking the
+        text up, so a sentence that occurs twice is not an error.)
         """
-        return [TextSentence(orig, document=self) for orig in self._originals]
+        if len(self._standalones) != len(self._originals):
+            raise ValueError(
+                f"{self._standalones_path.name} has {len(self._standalones):,} "
+                f"sentences but {self._raw_sentences_path.name} has "
+                f"{len(self._originals):,}; delete the standalone file to "
+                "recompute it")
+        return [TextSentence(orig, standalone=standalone)
+                for orig, standalone in zip(self._originals, self._standalones)]
 
     @classmethod
     def make_chunk_standalone_(cls, sentences: List[Sentence]) -> List[str]:
@@ -274,6 +283,9 @@ class TextDocument(Document):
             # in the background (threads cannot be killed) and are ignored.
             executor.shutdown(wait=False, cancel_futures=True)
 
+        # One rewrite per line, index-aligned with the raw sentences file, so
+        # a rewrite that came back with a line break is joined into one line.
+        results = [" ".join(r.split()) for r in results]
         self._standalones_path.write_text("\n".join(results))
         return results
 

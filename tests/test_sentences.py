@@ -136,3 +136,32 @@ def test_cancel_stops_the_pool(tmp_path, monkeypatch):
     finally:
         utils.set_cancel_check(None)
     assert len(llm.calls) < 50
+
+
+# --- pairing raw sentences with their rewrites --------------------------------
+def test_a_repeated_sentence_keeps_each_rewrite_by_position(tmp_path):
+    """A sentence that occurs twice is fine; each copy gets its own rewrite."""
+    doc = _doc(tmp_path, ["It rained.", "The match went on.", "It rained."])
+    doc._standalones = ["In Leeds it rained.", "The match went on.",
+                        "In York it rained."]
+    got = doc.sentences()
+    assert [s.original for s in got] == ["It rained.", "The match went on.", "It rained."]
+    assert [s.standalone for s in got] == ["In Leeds it rained.", "The match went on.",
+                                           "In York it rained."]
+
+
+def test_mismatched_standalone_file_is_reported(tmp_path):
+    doc = _doc(tmp_path, ["One.", "Two."])
+    doc._standalones = ["One."]
+    with pytest.raises(ValueError, match="delete the standalone file"):
+        doc.sentences()
+
+
+def test_a_multi_line_rewrite_is_saved_on_one_line(tmp_path, monkeypatch):
+    """The saved file stays one rewrite per line, aligned with the raw sentences."""
+    doc = _doc(tmp_path, ["A.", "B.", "C."])
+    monkeypatch.setattr(sm, "make_text_sentence_standalone",
+                        lambda sentence, context, stats: f"{sentence}\n(rewritten)")
+    out = doc.compute_standalones()
+    assert out == ["A. (rewritten)", "B. (rewritten)", "C. (rewritten)"]
+    assert utils.load_lines(doc._standalones_path) == out
