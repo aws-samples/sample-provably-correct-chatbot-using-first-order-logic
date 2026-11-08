@@ -40,6 +40,19 @@ export class ChatbotStack extends cdk.Stack {
       natGateways: 1,
     });
 
+    // VPC Block Public Access: when the account (or its organization) turns
+    // it on, the internet gateway drops all traffic to the public subnets,
+    // so CloudFront cannot reach the ALB and every page returns 504. Exempt
+    // this stack's public subnets (the ALB and the NAT gateway); the private
+    // subnets, where the tasks run, stay under the account setting. An
+    // exclusion has no effect while Block Public Access is off.
+    vpc.publicSubnets.forEach((subnet, i) => {
+      new ec2.CfnVPCBlockPublicAccessExclusion(this, `PublicSubnetBpaExclusion${i + 1}`, {
+        subnetId: subnet.subnetId,
+        internetGatewayExclusionMode: 'allow-bidirectional',
+      });
+    });
+
     const cluster = new ecs.Cluster(this, 'Cluster', { vpc });
 
     // --- Cognito (app-level auth) ----------------------------------------

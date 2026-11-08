@@ -225,6 +225,9 @@ The session emitted nothing for the stall timeout (default 480 s), so the watchd
 **The Chatbot tab says "No theory is ready yet", or `/ask` returns 409 `no theory selected`.**
 No theory has finished building. The chatbot only serves theories built in this deployment. Build one in the Theories tab.
 
+**Every page returns CloudFront `504 Gateway Timeout` while the ECS service is healthy.**
+CloudFront cannot reach the load balancer. Check VPC Block Public Access first (`aws ec2 describe-vpc-block-public-access-options`): in `block-ingress` mode the internet gateway drops all inbound traffic before any security group sees it. The stack exempts its public subnets (`PublicSubnetBpaExclusion1` and `2`); if those were removed, or a subnet already had an exclusion from outside the stack, recreate one with `aws ec2 create-vpc-block-public-access-exclusion --subnet-id <public subnet> --internet-gateway-exclusion-mode allow-bidirectional`.
+
 **`npm ci` fails with `Missing: yaml@... from lock file`.**
 `frontend/package-lock.json` was written by npm 11; npm 10 dedupes differently. Use npm 11 (`npx -y npm@11 ci`). The Docker build pins npm 11 for this reason.
 
