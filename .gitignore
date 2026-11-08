@@ -16,7 +16,9 @@ cdk/cdk.context.json
 
 # Local build run files and large input data.
 runs/
-sentences/
+# sentences/* (not sentences/): git cannot re-include a file inside an
+# ignored directory, so the directory itself must not be ignored.
+sentences/*
 # The Synthea sample data ships as a single zip (expanded at Docker build time);
 # track the zip even though sentences/ is otherwise ignored. The expanded dir
 # (sentences/synthea_sample_data_fhir_dstu2_latest/) stays ignored.
