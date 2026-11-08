@@ -31,7 +31,9 @@
 
 .App {
   height: 100vh;
-  width: 100vw;
+  /* 100%, not 100vw: 100vw includes a vertical scrollbar's width, which
+     makes the page scroll sideways by that much. */
+  width: 100%;
   display: flex;
   flex-direction: column;
 }
@@ -1011,18 +1013,20 @@
   margin-top: 12px;
 }
 
-/* Raw vs de-contextualized sentences: after the narrow # column, the two text
-   columns split the rest of the width evenly. A fixed layout makes the widths
-   hold whatever the sentences' lengths. */
+/* Raw vs de-contextualized sentences, fitted to the panel width. In a fixed
+   layout only the # column is sized; the two text columns get no width, so
+   they split what is left (padding included) exactly in half and the table
+   never grows wider than its container, whatever the sentences' lengths. */
 .sentences-table {
   table-layout: fixed;
+  width: 100%;
 }
 
 .sentences-table th:nth-child(2),
 .sentences-table td:nth-child(2),
 .sentences-table th:last-child,
 .sentences-table td:last-child {
-  width: calc((100% - 2.5em) / 2);
+  width: auto;
   white-space: normal;
   overflow-wrap: anywhere;
 }
