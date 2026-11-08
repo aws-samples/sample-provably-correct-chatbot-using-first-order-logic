@@ -166,6 +166,11 @@ def test_formalize_document_builds_one_theory_and_saves_it(monkeypatch):
     loaded = af.load_run_result(af.Path(summary["runs_path"]))
     assert loaded["theory"] == "(declare-const x Int)"
     assert len(loaded["suggested_questions"]) == 16
+    # Each verified question comes with the expected answer it was checked against.
+    assert len(loaded["verified_qs_and_as"]) == 16
+    assert all(q == pair[0] for q, pair in zip(loaded["suggested_questions"],
+                                              loaded["verified_qs_and_as"]))
+    assert loaded["verified_qs_and_as"][0][1].startswith("a")
     assert len(loaded["sentences"]) == 20
     assert loaded["p"].subject_ids == ["facts"]
     p, result = af.load_run_file(af.Path(summary["runs_path"]))

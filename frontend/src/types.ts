@@ -52,6 +52,10 @@ export interface TheoryDetail extends TheorySummary {
   // The "suggested questions" (the test-set questions the build
   // verified), surfaced as a [Q&As] artifact. Empty until the build is ready.
   suggested_questions?: string[];
+  // The same questions with their answers: a test-set question's expected
+  // answer (what the theory was verified against), or the answer the chatbot
+  // proved for a generated variation. answer is null when none is known.
+  suggested_qas?: { question: string; answer: string | null; source: 'test set' | 'variation' }[];
   subject_id: string | null;
   // The individual sentences the source document was split into (one per line
   // in the sentence-list modal). Empty for FHIR theories.

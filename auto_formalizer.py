@@ -909,11 +909,15 @@ def load_run_result(run_file: Union[Path, str]) -> dict:
     else:
         blobs = list(yaml.safe_load_all(StringIO(load_s3_object(run_file))))
     p, result = blobs
+    correct = list(dict.fromkeys(result.get("correctly_answered_questions") or []))
+    expected = {qa[0]: qa[1] for qa in result.get("all_qs_and_as") or []
+                if isinstance(qa, (list, tuple)) and len(qa) >= 2}
     return dict(
         p=Params.from_dict(p) if p else None,
         theory=result["theory"],
-        suggested_questions=list(dict.fromkeys(
-            result.get("correctly_answered_questions") or [])),
+        suggested_questions=correct,
+        # Each verified question with the expected answer the theory matched.
+        verified_qs_and_as=[[q, expected[q]] for q in correct if q in expected],
         sentences=result["sentences"])
 
 

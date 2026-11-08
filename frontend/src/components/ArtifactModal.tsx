@@ -17,7 +17,7 @@ interface ArtifactModalProps {
 const TITLES: Record<ArtifactKind, string> = {
   source: 'Source document',
   smtlib: 'SMT-LIB theory',
-  qas: 'Verified test-set questions',
+  qas: 'Verified questions and answers',
   yaml: 'Theory YAML',
 };
 
@@ -73,10 +73,11 @@ export function ArtifactModal({ theory, kind, onClose }: ArtifactModalProps) {
     if (kind === 'source') return detail.source_document || '(none)';
     if (kind === 'smtlib') return detail.computed_theory || notReady;
     if (kind === 'yaml') return detail.computed_theory_yaml || notReady;
-    // qas: one question per line.
+    // qas without answers (an older server): one question per line.
     const qs = detail.suggested_questions ?? [];
     return qs.length > 0 ? qs.join('\n') : notReady;
   })();
+  const qas = kind === 'qas' ? detail?.suggested_qas ?? [] : [];
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -102,10 +103,53 @@ export function ArtifactModal({ theory, kind, onClose }: ArtifactModalProps) {
             Error: {error}
           </p>
         )}
-        {!error && !loading && (
+        {!error && !loading && qas.length > 0 && <QasTable qas={qas} />}
+        {!error && !loading && qas.length === 0 && (
           <pre className="modal-log artifact-body">{body}</pre>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * The theory's verified questions with their answers. Test-set questions show
+ * the expected answer the theory was verified against; generated variations
+ * show the answer the chatbot proved when the variation was validated.
+ */
+function QasTable({ qas }: { qas: NonNullable<TheoryDetail['suggested_qas']> }) {
+  const fromTestSet = qas.filter((q) => q.source === 'test set').length;
+  return (
+    <div className="artifact-body build-view-panel artifact-qas">
+      <p className="muted small">
+        {fromTestSet} from the test set (with the expected answer the theory was verified
+        against) and {qas.length - fromTestSet} generated variations (with the answer the
+        chatbot proved).
+      </p>
+      <table className="unit-qas-table sentences-table">
+        <caption className="visually-hidden">Verified questions and their answers</caption>
+        <thead>
+          <tr>
+            <th scope="col">#</th>
+            <th scope="col">Question</th>
+            <th scope="col">Answer</th>
+          </tr>
+        </thead>
+        <tbody>
+          {qas.map((q, i) => (
+            <tr key={i}>
+              <td>{i + 1}</td>
+              <td>
+                {q.question}
+                {q.source === 'variation' && <span className="muted small"> (variation)</span>}
+              </td>
+              <td className={q.answer == null ? 'muted' : undefined}>
+                {q.answer ?? 'not recorded'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

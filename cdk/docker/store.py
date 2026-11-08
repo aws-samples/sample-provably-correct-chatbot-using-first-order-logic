@@ -337,6 +337,39 @@ def _theory_summary(item: dict) -> dict:
     }
 
 
+def _suggested_qas(questions: list, stored: dict, job_id: Optional[str]) -> list:
+    """
+    Each suggested question with its answer, for the theory's Q&A view:
+    [{"question", "answer", "source"}]. A test-set question's answer is the
+    expected answer the theory was verified against ("test set"); a variation's
+    is the answer the chatbot proved when it was validated ("variation").
+    Theories built before answers were stored fall back to the build's
+    recorded test set (job introspection); a question with no known answer
+    gets answer None.
+    """
+    expected = {qa[0]: qa[1] for qa in stored.get("verified_qs_and_as") or []
+                if isinstance(qa, (list, tuple)) and len(qa) >= 2}
+    if not expected and job_id and ENABLED:
+        try:
+            recorded = _introspection.load_qas(_s3, BUCKET, job_id) or {}
+            expected = {q["question"]: q["expected_answer"]
+                        for q in recorded.get("questions") or []
+                        if q.get("question")}
+        except Exception:  # pylint: disable=broad-except
+            expected = {}
+    variations = stored.get("variation_answers") or {}
+    out = []
+    for q in questions:
+        if not isinstance(q, str):
+            continue
+        if q in expected:
+            out.append({"question": q, "answer": expected[q], "source": "test set"})
+        else:
+            out.append({"question": q, "answer": variations.get(q),
+                        "source": "variation"})
+    return out
+
+
 def get_theory(theory_id: str) -> Optional[dict]:
     """Full theory incl. source document + computed theory text (tab 2)."""
     if not ENABLED:
@@ -360,6 +393,7 @@ def get_theory(theory_id: str) -> Optional[dict]:
     out["computed_theory_yaml"] = raw_yaml
     smt_lib = raw_yaml
     suggested: list = []
+    parsed = None
     if raw_yaml:
         try:
             import yaml as _yaml  # module has no top-level yaml import
@@ -374,9 +408,11 @@ def get_theory(theory_id: str) -> Optional[dict]:
                 if isinstance(sq, list):
                     suggested = sq
         except Exception:  # pylint: disable=broad-except
-            pass
+            parsed = None
     out["computed_theory"] = smt_lib
     out["suggested_questions"] = suggested
+    out["suggested_qas"] = _suggested_qas(
+        suggested, parsed if isinstance(parsed, dict) else {}, item.get("job_id"))
     out["subject_id"] = item.get("subject_id")
     # The individual sentences the document was split into (one per line in the
     # UI's sentence-list modal). FHIR theories are not sentence-split, so this
@@ -1605,7 +1641,8 @@ def _original_build_questions(result: dict) -> list:
 
 
 def generate_suggested_questions(result: dict, subject_ids: list,
-                                 job_id: str = "", name: str = "") -> list:
+                                 job_id: str = "", name: str = "",
+                                 answers_out: Optional[dict] = None) -> list:
     """
     Build the persisted "I'm Feeling Lucky" question set for a theory:
 
@@ -1624,6 +1661,9 @@ def generate_suggested_questions(result: dict, subject_ids: list,
     (THEORY/SENTENCES/SUBJECT_IDS set by the caller). Best-effort: any failure
     degrades to returning just the originals, so a flaky LLM/prover never fails
     a theory build.
+
+    `answers_out`, when given, receives each accepted variation's answer (the
+    one the validation run proved), keyed by the question.
     """
     import chatbot_backend as cb
     from auto_formalizer import generate_q_and_a, get_global_stats
@@ -1671,6 +1711,8 @@ def generate_suggested_questions(result: dict, subject_ids: list,
 
         if answer and answer.strip().lower() != "i don't know":
             variations.append(candidate)
+            if answers_out is not None:
+                answers_out[candidate] = answer
             _log(f"accepted variation {len(variations)}/{want}: {candidate!r}")
         else:
             _log(f"dropped unanswerable variation: {candidate!r}")
@@ -1826,8 +1868,11 @@ def run_job(job_id, theory_id, subject_id, name, source_text, doc_type,
                 for s in raw_sentences
             ]
             _jlog(job_id, f"{name}: generating suggested questions")
+            variation_answers: dict = {}
             loaded["suggested_questions"] = generate_suggested_questions(
-                loaded, [subject_id], job_id=job_id, name=name)
+                loaded, [subject_id], job_id=job_id, name=name,
+                answers_out=variation_answers)
+            loaded["variation_answers"] = variation_answers
         except Exception as ex:  # pylint: disable=broad-except
             _jlog(job_id, f"{name}: suggested-questions generation skipped: {ex}")
             loaded.setdefault("suggested_questions",

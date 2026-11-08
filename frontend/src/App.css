@@ -1013,6 +1013,11 @@
   margin-top: 12px;
 }
 
+/* The Q&A artifact's table inside the artifact modal. */
+.artifact-qas {
+  padding: 10px 16px 16px;
+}
+
 /* Live kiro-cli view: a scrolling box of fixed height, so "follow the newest
    line" has something to scroll. */
 .kiro-live {

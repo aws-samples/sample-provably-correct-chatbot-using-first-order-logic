@@ -550,3 +550,27 @@ def test_each_finished_phase_records_what_it_spent():
     assert theory["bedrock_dollars"] == pytest.approx(0.50)
     assert theory["kiro_credits"] == pytest.approx(6.5)
     assert all("spent_at_start" not in t for t in state_of(s3)["phase_times"].values())
+
+
+# --- answers for the theory's verified questions ---------------------------
+def test_suggested_qas_pair_questions_with_their_answers(store_env):
+    store, _ = store_env
+    stored = {"verified_qs_and_as": [["Q1?", "A1"], ["Q2?", "A2"]],
+              "variation_answers": {"V1?": "The chatbot's proved answer."}}
+    out = store._suggested_qas(["Q1?", "Q2?", "V1?", "V2?"], stored, JOB)
+    assert out == [
+        {"question": "Q1?", "answer": "A1", "source": "test set"},
+        {"question": "Q2?", "answer": "A2", "source": "test set"},
+        {"question": "V1?", "answer": "The chatbot's proved answer.", "source": "variation"},
+        {"question": "V2?", "answer": None, "source": "variation"},
+    ]
+
+
+def test_older_theories_take_answers_from_the_recorded_test_set(store_env):
+    store, s3 = store_env
+    r = ji.Recorder(s3, "bucket", JOB, start_thread=False)
+    start_build(r)  # records the test set: Q1?/A1, Q2?/A2, Q3?/A3
+    r.close()
+    out = store._suggested_qas(["Q2?", "Other?"], {}, JOB)
+    assert out == [{"question": "Q2?", "answer": "A2", "source": "test set"},
+                   {"question": "Other?", "answer": None, "source": "variation"}]
