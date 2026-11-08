@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 """Tests for build_params (the Build parameters dialog) and its store wiring."""
 import json
 import os

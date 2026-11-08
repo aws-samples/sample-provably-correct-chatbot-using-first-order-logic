@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 """Tests for the kiro-cli theory engine (no kiro-cli, cvc5 or Bedrock needed)."""
 import json
 import re

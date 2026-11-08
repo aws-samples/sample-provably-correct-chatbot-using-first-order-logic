@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 """
 Parameters for one theory build. In their own module so they can be imported
 anywhere (the formalizer, the chatbot and the web service all read g.p).

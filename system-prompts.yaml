@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 default:
   generate_q_and_a: "You are an expert at understanding complicated documents"
 fhir:

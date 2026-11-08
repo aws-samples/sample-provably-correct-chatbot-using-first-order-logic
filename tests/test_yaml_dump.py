@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 """utils.yaml_dump / yaml_dump_all must write YAML that reads back exactly."""
 import doctest
 import io

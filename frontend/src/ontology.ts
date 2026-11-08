@@ -1,3 +1,6 @@
+// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: MIT-0
+
 // Display-only expansion of well-known ontology acronyms into their full
 // names, e.g. "GO" -> "Gene Ontology (GO)". This affects LABELS only; the
 // stored theory name/id is never changed, so selection and queries are

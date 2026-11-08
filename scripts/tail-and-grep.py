@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 """
 A command-line tool to "tail -f" a file and 
 grep for a pattern. Useful for monitoring log files.

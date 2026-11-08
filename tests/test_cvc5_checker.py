@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 """Tests for kiro_tools/cvc5_checker.py, the kiro agent's cvc5 checker."""
 import json
 import os

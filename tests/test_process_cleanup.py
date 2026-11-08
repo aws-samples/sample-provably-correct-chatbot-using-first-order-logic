@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 """
 Tests that kiro-cli process trees and leftover pool workers really die
 (the Hypertension final-reducer hang). Linux only: uses real processes.

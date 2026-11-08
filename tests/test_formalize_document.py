@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 """
 Tests for the single-unit build driver (auto_formalizer.formalize_document)
 and its test-set generation. No kiro-cli, cvc5 or Bedrock needed.

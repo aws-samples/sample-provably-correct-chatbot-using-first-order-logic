@@ -1,3 +1,6 @@
+// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: MIT-0
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchJobs, fetchTheories } from './api';
 import { Job, TheorySummary } from './types';

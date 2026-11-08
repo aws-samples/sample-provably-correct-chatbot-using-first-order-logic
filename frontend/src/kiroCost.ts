@@ -1,3 +1,6 @@
+// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: MIT-0
+
 import { KiroCostTotals } from './types';
 
 /** "$0.49", or "<$0.01" for a non-zero amount that rounds to nothing. */

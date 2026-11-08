@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 """
 Given a subject, download the corresponding article from Wikipedia, parse
 it into sentences, and create standalone versions of each sentence.

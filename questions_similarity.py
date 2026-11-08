@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 """
 Efficiently (w/o quadratic inferences) determine how similar
 a question is to a set of other questions. We then use this

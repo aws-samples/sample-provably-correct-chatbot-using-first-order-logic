@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 # pylint: disable=too-many-arguments, too-many-positional-arguments, too-many-locals
 # pylint: disable=not-context-manager # doesn't get context from otel.py
 """

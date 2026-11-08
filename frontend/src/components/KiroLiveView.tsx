@@ -1,3 +1,6 @@
+// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: MIT-0
+
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { fetchKiroLog } from '../api';
 

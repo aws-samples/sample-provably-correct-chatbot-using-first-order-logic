@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 default:
   convert_question_to_logical_form: |
     I want you to convert a natural language question into a logical form.

@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 """
 Build a theory from the command line: formalize every sentence of the given
 subjects in one kiro-cli unit (auto_formalizer.formalize_document) and write

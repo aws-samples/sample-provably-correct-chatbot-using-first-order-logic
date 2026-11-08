@@ -1,3 +1,6 @@
+// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: MIT-0
+
 // API client for the chatbot backend.
 // Base URL comes from REACT_APP_API_BASE_URL, defaulting to localhost (empty in
 // the deployed image, so calls are same-origin).

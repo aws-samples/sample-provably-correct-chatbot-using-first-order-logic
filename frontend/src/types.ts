@@ -1,3 +1,6 @@
+// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: MIT-0
+
 // Message model for the chat transcript.
 
 export type MessageKind = 'user' | 'bot' | 'pending' | 'error';

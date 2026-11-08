@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 """Tests for store._reconcile_builder_jobs (stale builder-job detection).
 
 Uses in-memory fakes for the DynamoDB jobs table and the ECS client, so no AWS

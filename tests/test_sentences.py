@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 """
 Decontextualization ("make standalone") of TextDocument sentences: each
 sentence gets only the previous N raw sentences as context, and the rewrites

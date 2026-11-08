@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 """
 The chatbot loads a store-backed theory from its stored YAML, not from the
 SMT-LIB text store.get_theory exposes as `computed_theory` (regression: the

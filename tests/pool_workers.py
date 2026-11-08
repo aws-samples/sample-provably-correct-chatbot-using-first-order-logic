@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 """Worker functions for test_pool_retries (module-level so spawned children can import them)."""
 import time
 

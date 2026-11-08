@@ -1,3 +1,6 @@
+// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: MIT-0
+
 import React from 'react';
 import { act, render, screen } from '@testing-library/react';
 import { KIRO_POLL_MS, KiroLiveView, classifyKiroLine } from './KiroLiveView';
