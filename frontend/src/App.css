@@ -1011,13 +1011,20 @@
   margin-top: 12px;
 }
 
-/* Raw vs de-contextualized sentences: two text columns of equal weight. */
+/* Raw vs de-contextualized sentences: after the narrow # column, the two text
+   columns split the rest of the width evenly. A fixed layout makes the widths
+   hold whatever the sentences' lengths. */
+.sentences-table {
+  table-layout: fixed;
+}
+
 .sentences-table th:nth-child(2),
 .sentences-table td:nth-child(2),
 .sentences-table th:last-child,
 .sentences-table td:last-child {
-  width: auto;
+  width: calc((100% - 2.5em) / 2);
   white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 /* Live kiro-cli view: a scrolling box of fixed height, so "follow the newest
