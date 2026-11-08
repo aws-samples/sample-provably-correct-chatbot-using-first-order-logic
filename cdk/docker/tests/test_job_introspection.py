@@ -479,3 +479,22 @@ def test_store_kiro_tail_uses_the_builder_stream(store_env, monkeypatch):
     out = store.kiro_log_tail(JOB)
     assert out["lines"] == ["kc: hello"]
     assert logs.calls[0]["logStreamNames"] == ["chatbot-builder/builder/abc123"]
+
+
+def test_start_keeps_raw_and_decontextualized_sentences(rec):
+    r, s3 = rec
+    r.handle(dict(type="start", sentences=["The cape is in Florida.", "The cape has a lighthouse."],
+                  raw_sentences=["The cape is in Florida.", "It has a lighthouse."],
+                  standalone_sentences=["The cape is in Florida.", "The cape has a lighthouse."]))
+    st = state_of(s3)
+    assert st["raw_sentences"] == ["The cape is in Florida.", "It has a lighthouse."]
+    assert st["standalone_sentences"][1] == "The cape has a lighthouse."
+    assert st["n_sentences"] == 2
+
+
+def test_start_without_rewrites_records_none_per_sentence(rec):
+    r, s3 = rec
+    r.handle(dict(type="start", sentences=["{patient}", "{obs}"],
+                  raw_sentences=["{obs}"], standalone_sentences=[]))
+    st = state_of(s3)
+    assert st["raw_sentences"] == ["{obs}"] and st["standalone_sentences"] == [None]

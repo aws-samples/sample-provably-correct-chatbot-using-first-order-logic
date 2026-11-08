@@ -171,7 +171,7 @@ export function JobIntrospectionTab({ jobs, jobId }: JobIntrospectionTabProps) {
             aria-labelledby={`build-view-${view}`}
             className="build-view-panel"
           >
-            {view === 'sentences' && <SentencesView sentences={state.sentences} />}
+            {view === 'sentences' && <SentencesView state={state} />}
             {view === 'qas' && <TestSetView qas={data.qas} />}
             {view === 'theory' && <TheoryView theory={data.theory} state={state} />}
             {view === 'kiro' && <KiroLiveView jobId={data.job.id} live={live} />}
@@ -282,12 +282,59 @@ function SessionsTable({
   );
 }
 
-function SentencesView({ sentences }: { sentences: string[] }) {
-  if (sentences.length === 0) return <p className="muted">No sentences recorded yet.</p>;
+function SentencesView({ state }: { state: IntrospectionState }) {
+  const raw = state.raw_sentences ?? [];
+  if (raw.length === 0) {
+    // Recorded before raw sentences were kept: only what the agent was given.
+    if (state.sentences.length === 0) return <p className="muted">No sentences recorded yet.</p>;
+    return (
+      <>
+        <p className="muted small">
+          This build was recorded before raw sentences were kept, so only the
+          de-contextualized sentences the agent was given are shown.
+        </p>
+        <pre className="modal-log artifact-body">
+          {state.sentences.map((t, i) => `${i + 1}. ${t}`).join('\n')}
+        </pre>
+      </>
+    );
+  }
+  const standalone = state.standalone_sentences ?? [];
+  const hasRewrites = standalone.some((t) => t != null);
+  const changed = raw.filter((t, i) => standalone[i] != null && standalone[i] !== t).length;
   return (
-    <pre className="modal-log artifact-body">
-      {sentences.map((t, i) => `${i + 1}. ${t}`).join('\n')}
-    </pre>
+    <>
+      <p className="muted small">
+        {hasRewrites
+          ? `${raw.length} sentences; the de-contextualization rewrote ${changed} of them so each one stands on its own.`
+          : `${raw.length} entries. FHIR entries are not rewritten: each one is given to the agent with its patient's details attached.`}
+      </p>
+      <table className="unit-qas-table sentences-table">
+        <caption className="visually-hidden">Raw and de-contextualized sentences</caption>
+        <thead>
+          <tr>
+            <th scope="col">#</th>
+            <th scope="col">Raw sentence</th>
+            <th scope="col">De-contextualized sentence</th>
+          </tr>
+        </thead>
+        <tbody>
+          {raw.map((t, i) => {
+            const rewrite = standalone[i];
+            const same = rewrite == null || rewrite === t;
+            return (
+              <tr key={i}>
+                <td>{i + 1}</td>
+                <td>{t}</td>
+                <td className={same ? 'muted' : undefined}>
+                  {rewrite == null ? '—' : same ? 'unchanged' : rewrite}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </>
   );
 }
 

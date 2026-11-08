@@ -149,6 +149,8 @@ def test_formalize_document_builds_one_theory_and_saves_it(monkeypatch):
     assert [e["type"] for e in events] == ["start", "phase", "test_set", "phase",
                                            "session_start", "end"]
     assert events[0]["sentences"] == [s.standalone for s in SENTENCES[:20]]
+    assert events[0]["raw_sentences"] == [s.original for s in SENTENCES[:20]]
+    assert events[0]["standalone_sentences"] == [s.standalone for s in SENTENCES[:20]]
     assert [e["phase"] for e in events if e["type"] == "phase"] == ["test_set", "theory"]
     assert events[2]["n_required"] == 16 and len(events[2]["qs_and_as"]) == 20
     assert events[-1]["ok"] is True and events[-1]["n_correct"] == 16

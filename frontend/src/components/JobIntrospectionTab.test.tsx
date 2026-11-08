@@ -26,7 +26,9 @@ const STATE: IntrospectionState = {
   finished_at: 1700003600,
   duration: 3600,
   n_sentences: 3,
-  sentences: ['Plants photosynthesize.', 'Chlorophyll is green.', 'Oxygen is released.'],
+  sentences: ['Plants photosynthesize.', 'Chlorophyll is green.', 'Photosynthesis releases oxygen.'],
+  raw_sentences: ['Plants photosynthesize.', 'Chlorophyll is green.', 'It releases oxygen.'],
+  standalone_sentences: ['Plants photosynthesize.', 'Chlorophyll is green.', 'Photosynthesis releases oxygen.'],
   n_questions: 3,
   n_required: 2,
   n_correct: 2,
@@ -111,8 +113,12 @@ test('lists every kiro-cli session with its kind, cost and verified count', asyn
 test('the views show sentences, the test set and the theory', async () => {
   mockFetch({ '/introspection': INTROSPECTION });
   render(<JobIntrospectionTab jobs={[JOB]} jobId="job-1" />);
-  const panel = await screen.findByRole('tabpanel');
-  expect(panel).toHaveTextContent('1. Plants photosynthesize.');
+  const sentences = await screen.findByRole('table', { name: 'Raw and de-contextualized sentences' });
+  const rows = within(sentences).getAllByRole('row').slice(1);
+  expect(rows).toHaveLength(3);
+  expect(rows[0]).toHaveTextContent('Plants photosynthesize.unchanged');
+  expect(rows[2]).toHaveTextContent('It releases oxygen.Photosynthesis releases oxygen.');
+  expect(screen.getByRole('tabpanel')).toHaveTextContent('rewrote 1 of them');
 
   fireEvent.click(screen.getByRole('tab', { name: 'Test set' }));
   const qas = screen.getByRole('table', { name: 'Test questions and expected answers' });
@@ -167,4 +173,22 @@ test('the verified line grows with the build', () => {
   expect(verifiedLine({ ...STATE, n_questions: null })).toBeNull();
   expect(verifiedLine({ ...STATE, n_correct: null })).toBe('3 test questions (2 needed)');
   expect(verifiedLine(STATE)).toBe('2/3 verified (2 needed)');
+});
+
+test('older builds without raw sentences show what the agent was given', async () => {
+  const old = { ...STATE, raw_sentences: undefined, standalone_sentences: undefined };
+  mockFetch({ '/introspection': { ...INTROSPECTION, state: old } });
+  render(<JobIntrospectionTab jobs={[JOB]} jobId="job-1" />);
+  const panel = await screen.findByRole('tabpanel');
+  expect(panel).toHaveTextContent('recorded before raw sentences were kept');
+  expect(panel).toHaveTextContent('3. Photosynthesis releases oxygen.');
+});
+
+test('FHIR builds say entries are not rewritten', async () => {
+  const fhir = { ...STATE, raw_sentences: ['{"resourceType":"Observation"}'], standalone_sentences: [null] };
+  mockFetch({ '/introspection': { ...INTROSPECTION, state: fhir } });
+  render(<JobIntrospectionTab jobs={[JOB]} jobId="job-1" />);
+  const panel = await screen.findByRole('tabpanel');
+  expect(panel).toHaveTextContent('FHIR entries are not rewritten');
+  expect(panel).toHaveTextContent('—');
 });

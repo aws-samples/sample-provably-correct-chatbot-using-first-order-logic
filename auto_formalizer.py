@@ -71,7 +71,10 @@ bedrock_agent_runtime = boto3.client("bedrock-agent-runtime",
 # Introspection tab (cdk/docker/job_introspection.py) are fed from it.
 # Best-effort: a callback that raises must never fail the build. Events
 # (dicts, in order):
-#   {"type": "start", "sentences": [str, ...]}        standalone sentences
+#   {"type": "start", "sentences": [str, ...],        what the agent is given
+#        "raw_sentences": [str, ...],                  each sentence as written
+#        "standalone_sentences": [str | None, ...]}    its decontextualized
+#                                                      rewrite (None for FHIR)
 #   {"type": "phase", "phase": "test_set" | "theory"}
 #   {"type": "test_set", "qs_and_as": [[q, a], ...], "n_required": int}
 #   {"type": "session_start", "session": n, "kind": k}  k = build | feedback
@@ -1045,8 +1048,13 @@ def formalize_document() -> dict:
         sentences = load_all_sentences(stats)
         if not sentences:
             raise ValueError(f"no sentences for subjects {g.p.subject_ids}")
-        report_progress(dict(type="start",
-                             sentences=Document.make_standalone_lines(sentences)))
+        report_progress(dict(
+            type="start",
+            sentences=Document.make_standalone_lines(sentences),
+            raw_sentences=[s.original for s in sentences],
+            # Text and MDM sentences have an LLM rewrite; FHIR entries get
+            # their patient context attached structurally instead.
+            standalone_sentences=[getattr(s, "standalone", None) for s in sentences]))
         runs_path = generate_uniq_run_file(g.p.subject_ids)
         print(f"fd: {len(sentences):,} sentences; writing to {runs_path}")
 

@@ -152,7 +152,13 @@ export interface IntrospectionState {
   finished_at: number | null;
   duration: number | null;
   n_sentences: number | null;
+  // What the agent is given (for text, the de-contextualized sentences).
   sentences: string[];
+  // Each sentence as written, and its de-contextualized rewrite (null where
+  // there is none: FHIR entries get their context attached structurally).
+  // Absent for jobs recorded before they were kept.
+  raw_sentences?: string[];
+  standalone_sentences?: (string | null)[];
   n_questions: number | null;
   n_required: number | null;
   // Questions the latest valid theory answered correctly (as re-verified).

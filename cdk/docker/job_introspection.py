@@ -88,6 +88,7 @@ class Recorder:
             "status": RUNNING, "phase": "sentences", "started_at": now,
             "finished_at": None, "duration": None,
             "n_sentences": None, "sentences": [],
+            "raw_sentences": [], "standalone_sentences": [],
             "n_questions": None, "n_required": None, "n_correct": None,
             "theory_chars": None, "sessions": [],
             "kiro_credits": 0.0, "kiro_sessions": 0,
@@ -120,7 +121,13 @@ class Recorder:
 
     def _start(self, event: dict, now: int) -> None:
         sentences = list(event.get("sentences") or [])
-        self.state.update(sentences=sentences, n_sentences=len(sentences))
+        raw = list(event.get("raw_sentences") or [])
+        standalone = list(event.get("standalone_sentences") or [])
+        if len(standalone) != len(raw):
+            standalone = [None] * len(raw)
+        self.state.update(sentences=sentences, raw_sentences=raw,
+                          standalone_sentences=standalone,
+                          n_sentences=len(raw) or len(sentences))
 
     def _phase(self, event: dict, now: int) -> None:
         if event.get("phase") in PHASES:

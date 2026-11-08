@@ -1011,6 +1011,15 @@
   margin-top: 12px;
 }
 
+/* Raw vs de-contextualized sentences: two text columns of equal weight. */
+.sentences-table th:nth-child(2),
+.sentences-table td:nth-child(2),
+.sentences-table th:last-child,
+.sentences-table td:last-child {
+  width: auto;
+  white-space: normal;
+}
+
 /* Live kiro-cli view: a scrolling box of fixed height, so "follow the newest
    line" has something to scroll. */
 .kiro-live {
