@@ -71,6 +71,19 @@ export function buildStatus(state: IntrospectionState, job: Job): string {
   return state.status;
 }
 
+/**
+ * A phase's label in the stepper: "Load sentences (3 minutes)" once the
+ * phase has ended, the plain label before that (or when the build was
+ * recorded before phase times were kept).
+ */
+export function phaseLabel(
+  label: string,
+  time: { started_at: number; ended_at: number | null } | undefined
+): string {
+  if (!time || time.ended_at == null) return label;
+  return `${label} (${formatDuration(time.ended_at - time.started_at)})`;
+}
+
 /** e.g. "41/50 verified (40 needed)" once a session has been verified. */
 export function verifiedLine(state: IntrospectionState): string | null {
   if (state.n_questions == null) return null;
@@ -223,7 +236,7 @@ function BuildSummary({
                 className={done ? 'build-phase done' : here ? 'build-phase current' : 'build-phase'}
                 aria-current={here ? 'step' : undefined}
               >
-                {p.label}
+                {p.key === 'done' ? p.label : phaseLabel(p.label, state.phase_times?.[p.key])}
               </li>
             );
           })}

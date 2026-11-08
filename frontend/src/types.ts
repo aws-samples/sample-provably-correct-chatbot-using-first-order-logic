@@ -129,6 +129,11 @@ export type BuildPhase = 'sentences' | 'test_set' | 'theory' | 'done';
 // verification report; stall_resume = resumed after the stall watchdog.
 export type SessionKind = 'build' | 'feedback' | 'stall_resume';
 
+export interface PhaseTime {
+  started_at: number;
+  ended_at: number | null;
+}
+
 export interface SessionRecord {
   session: number;
   kind: SessionKind;
@@ -154,6 +159,9 @@ export interface IntrospectionState {
   started_at: number | null;
   finished_at: number | null;
   duration: number | null;
+  // When each phase started and ended (ended_at null while it runs). Absent
+  // for builds recorded before phase times were kept.
+  phase_times?: Partial<Record<Exclude<BuildPhase, 'done'>, PhaseTime>>;
   n_sentences: number | null;
   // What the agent is given (for text, the de-contextualized sentences).
   sentences: string[];

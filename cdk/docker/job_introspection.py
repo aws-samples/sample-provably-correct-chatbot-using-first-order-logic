@@ -89,6 +89,9 @@ class Recorder:
         self.state: Dict[str, Any] = {
             "version": STATE_VERSION, "job_id": job_id, "updated_at": now,
             "status": RUNNING, "phase": "sentences", "started_at": now,
+            # When each phase started and ended (epoch seconds; ended is None
+            # while it runs). The build starts in "sentences".
+            "phase_times": {"sentences": {"started_at": now, "ended_at": None}},
             "finished_at": None, "duration": None,
             "n_sentences": None, "sentences": [],
             "raw_sentences": [], "standalone_sentences": [],
@@ -132,9 +135,20 @@ class Recorder:
                           standalone_sentences=standalone,
                           n_sentences=len(raw) or len(sentences))
 
+    def _enter_phase(self, phase: str, now: int) -> None:
+        """End the current phase at `now` and start `phase` (unless done)."""
+        times = self.state.setdefault("phase_times", {})
+        current = times.get(self.state["phase"])
+        if current is not None and current.get("ended_at") is None \
+                and self.state["phase"] != phase:
+            current["ended_at"] = now
+        self.state["phase"] = phase
+        if phase != "done" and phase not in times:
+            times[phase] = {"started_at": now, "ended_at": None}
+
     def _phase(self, event: dict, now: int) -> None:
         if event.get("phase") in PHASES:
-            self.state["phase"] = event["phase"]
+            self._enter_phase(event["phase"], now)
 
     def _test_set(self, event: dict, now: int) -> List[tuple]:
         self._qas = [list(qa) for qa in event.get("qs_and_as") or [] if len(qa) >= 2]
@@ -178,7 +192,8 @@ class Recorder:
 
     def _end(self, event: dict, now: int) -> List[tuple]:
         ok = bool(event.get("ok"))
-        self.state.update(status=SUCCEEDED if ok else FAILED, phase="done",
+        self._enter_phase("done", now)
+        self.state.update(status=SUCCEEDED if ok else FAILED,
                           finished_at=now, duration=event.get("duration"),
                           n_correct=event.get("n_correct"),
                           n_required=event.get("n_required",

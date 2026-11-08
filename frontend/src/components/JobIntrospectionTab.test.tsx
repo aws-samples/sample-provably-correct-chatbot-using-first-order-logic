@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import { JobIntrospectionTab, buildStatus, verifiedLine } from './JobIntrospectionTab';
+import { JobIntrospectionTab, buildStatus, phaseLabel, verifiedLine } from './JobIntrospectionTab';
 import { IntrospectionState, Job, JobIntrospection } from '../types';
 
 const JOB: Job = {
@@ -170,6 +170,32 @@ test('a running build whose job ended is shown as stopped', () => {
   expect(buildStatus({ ...STATE, status: 'running' }, { ...JOB, status: 'cancelled' })).toBe('stopped');
   expect(buildStatus({ ...STATE, status: 'running' }, { ...JOB, status: 'running' })).toBe('running');
   expect(buildStatus(STATE, JOB)).toBe('succeeded');
+});
+
+test('finished phases show how long they took', async () => {
+  const timed = {
+    ...STATE,
+    phase_times: {
+      sentences: { started_at: 1700000000, ended_at: 1700000180 },
+      test_set: { started_at: 1700000180, ended_at: 1700000900 },
+      theory: { started_at: 1700000900, ended_at: 1700003600 },
+    },
+  };
+  mockFetch({ '/introspection': { ...INTROSPECTION, state: timed } });
+  render(<JobIntrospectionTab jobs={[JOB]} jobId="job-1" />);
+  const phases = await screen.findByRole('list', { name: 'Build phases' });
+  expect(within(phases).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+    'Load sentences (3 minutes)',
+    'Generate test set (12 minutes)',
+    'Build theory (45 minutes)',
+    'Done',
+  ]);
+});
+
+test('a phase still running, or with no recorded times, shows no duration', () => {
+  expect(phaseLabel('Build theory', { started_at: 10, ended_at: null })).toBe('Build theory');
+  expect(phaseLabel('Build theory', undefined)).toBe('Build theory');
+  expect(phaseLabel('Load sentences', { started_at: 0, ended_at: 30 })).toBe('Load sentences (<1 minute)');
 });
 
 test('the verified line grows with the build', () => {

@@ -501,3 +501,30 @@ def test_start_without_rewrites_records_none_per_sentence(rec):
                   raw_sentences=["{obs}"], standalone_sentences=[]))
     st = state_of(s3)
     assert st["raw_sentences"] == ["{obs}"] and st["standalone_sentences"] == [None]
+
+
+def test_each_phase_records_when_it_started_and_ended():
+    ticks = iter([1000, 1000, 1060, 1300, 1310, 5000, 5000, 5000])
+    s3 = FakeS3()
+    r = ji.Recorder(s3, "bucket", JOB, clock=lambda: next(ticks), start_thread=False)
+    r.handle(dict(type="start", sentences=["s"]))                  # 1000
+    r.handle(dict(type="phase", phase="test_set"))                 # 1060
+    r.handle(dict(type="test_set", qs_and_as=QAS, n_required=2))   # 1300
+    r.handle(dict(type="phase", phase="theory"))                   # 1310
+    r.handle(dict(type="end", ok=True, theory="(t)", n_correct=2, n_required=2,
+                  correct_questions=[], duration=4000.0))           # 5000
+    times = state_of(s3)["phase_times"]
+    assert times == {"sentences": {"started_at": 1000, "ended_at": 1060},
+                     "test_set": {"started_at": 1060, "ended_at": 1310},
+                     "theory": {"started_at": 1310, "ended_at": 5000}}
+    assert state_of(s3)["phase"] == "done"
+
+
+def test_a_failed_build_closes_the_phase_it_failed_in(rec):
+    r, s3 = rec
+    start_build(r)
+    r.handle(dict(type="end", ok=False, theory=None, n_correct=0, n_required=2,
+                  correct_questions=[], duration=5.0))
+    times = state_of(s3)["phase_times"]
+    assert all(t["ended_at"] is not None for t in times.values())
+    assert set(times) == {"sentences", "test_set", "theory"}
