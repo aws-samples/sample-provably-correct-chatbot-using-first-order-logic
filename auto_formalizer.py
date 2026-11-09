@@ -990,63 +990,108 @@ def split_quota(total: int, sizes: List[int]) -> List[int]:
     return quota
 
 
+# A window that adds no new question in this many rounds in a row has run out
+# of distinct questions; it is not asked again.
+TEST_SET_EXHAUSTED_ROUNDS = 2
+
+
 def generate_test_set(sentences: List[Sentence],
                       num_qs: int,
                       stats: Statistics) -> List[Tuple[str, str]]:
     """
-    The test set for the whole document: about `num_qs` diverse question /
-    expected-answer pairs.
+    The test set for the whole document: `num_qs` unique, semantically
+    distinct question / expected-answer pairs.
 
-    Each window of g.p.qa_window_sentences consecutive sentences generates
-    its share of the questions (gen_diverse_set_of_qs_and_as), so the
-    questions cover the whole document and every prompt stays small. The
-    windows run in parallel, at most g.p.qa_pool_size at a time. Then one
-    pass over all of them, in document order, drops questions that are too
-    similar to an earlier one from another window.
+    The document is split into windows of g.p.qa_window_sentences
+    consecutive sentences, so the questions cover all of it and every prompt
+    stays small. Generation runs in rounds. Each round, every window still
+    in play generates its share of the questions still missing
+    (gen_diverse_set_of_qs_and_as, at most g.p.qa_pool_size windows at a
+    time), told about every question it has produced before so it does not
+    repeat one. Each new question is kept only if it is not too similar to
+    any question already kept, from any window. Rounds continue until the
+    test set reaches `num_qs`.
+
+    The one exception: a window that adds nothing in
+    TEST_SET_EXHAUSTED_ROUNDS rounds in a row has no distinct questions left
+    and drops out, and when every window has, the test set is as large as
+    this document allows. It is then returned short, with a warning, instead
+    of looping forever.
     """
     # Windows never straddle two documents (a window is made standalone as
     # one chunk).
     windows = [w for run in Document.document_runs(sentences)
                for w in sentence_windows(run, g.p.qa_window_sentences)]
-    quotas = split_quota(num_qs, [len(w) for w in windows])
     print(f"gts: {num_qs:,} questions over {len(windows):,} windows")
 
     stats_lock = threading.Lock()
+    similarity = QuestionSimilarity()
+    seen: Set[str] = set()
+    kept: List[List[Tuple[str, str]]] = [[] for _ in windows]   # per window
+    tried: List[List[Tuple[str, str]]] = [[] for _ in windows]  # all it produced
+    idle_rounds = [0] * len(windows)
 
-    def one_window(window: List[Sentence], quota: int) -> List[Tuple[str, str]]:
+    def one_window(i: int, quota: int) -> List[Tuple[str, str]]:
+        """New (q, a) pairs from window i, excluding all it produced before."""
         window_stats = Statistics()
+        before = {q for q, _ in tried[i]}
         try:
-            return gen_diverse_set_of_qs_and_as(
-                sentences=window, num_new_questions_reqd=quota,
+            out = gen_diverse_set_of_qs_and_as(
+                sentences=windows[i], num_new_questions_reqd=quota,
+                existing_qs_and_as=list(tried[i]),
                 stats=window_stats, max_attempts=4 * quota + 4)
         finally:
             with stats_lock:
                 stats.add_another(window_stats)
+        return [(q, a) for q, a in out if q not in before]
+
+    def total() -> int:
+        return sum(len(k) for k in kept)
 
     with start_span("generate_test_set", num_qs=num_qs,
                     num_windows=len(windows)) as span, \
             ThreadPoolExecutor(max_workers=max(1, g.p.qa_pool_size)) as pool:
-        per_window = list(pool.map(one_window, windows, quotas))
-        similarity = QuestionSimilarity()
-        test_set: List[Tuple[str, str]] = []
-        seen: Set[str] = set()
-        for qs_and_as in per_window:
-            for q, a in qs_and_as:
-                if q in seen:
-                    continue
-                is_diverse, embedding, _ = \
-                    similarity.question_is_sufficiently_diverse(q)
-                if not is_diverse:
-                    print(f"gts: dropping a question too similar to another "
-                          f"window's: {q}")
-                    continue
-                similarity.add_question(q, embedding)
-                seen.add(q)
-                test_set.append((q, a))
-        print(f"gts: test set has {len(test_set):,} questions")
-        span.update(output=dict(num_qs=len(test_set)))
+        rounds = 0
+        while total() < num_qs:
+            active = [i for i in range(len(windows))
+                      if idle_rounds[i] < TEST_SET_EXHAUSTED_ROUNDS]
+            if not active:
+                print(f"gts: WARNING: every window has run out of distinct "
+                      f"questions; the test set has {total():,} of the "
+                      f"{num_qs:,} wanted")
+                break
+            rounds += 1
+            missing = num_qs - total()
+            quotas = split_quota(missing, [len(windows[i]) for i in active])
+            print(f"gts: round {rounds}: {missing:,} questions missing; "
+                  f"asking {len(active):,} windows")
+            results = list(pool.map(one_window, active, quotas))
+            # Accept in document order, so earlier windows keep precedence.
+            for i, new in zip(active, results):
+                added = 0
+                for q, a in new:
+                    tried[i].append((q, a))
+                    if q in seen:
+                        continue
+                    is_diverse, embedding, _ = \
+                        similarity.question_is_sufficiently_diverse(q)
+                    if not is_diverse:
+                        print(f"gts: dropping a question too similar to an "
+                              f"earlier one: {q}")
+                        continue
+                    similarity.add_question(q, embedding)
+                    seen.add(q)
+                    kept[i].append((q, a))
+                    added += 1
+                idle_rounds[i] = 0 if added else idle_rounds[i] + 1
+            print(f"gts: round {rounds}: test set has {total():,}/{num_qs:,}")
+        # Document order: window by window. A round can overshoot the target
+        # (a window's share is rounded up), so trim to exactly num_qs.
+        test_set = [qa for k in kept for qa in k][:num_qs]
+        print(f"gts: test set has {len(test_set):,} questions "
+              f"after {rounds} round(s)")
+        span.update(output=dict(num_qs=len(test_set), rounds=rounds))
         return test_set
-
 
 def formalize_document() -> dict:
     """

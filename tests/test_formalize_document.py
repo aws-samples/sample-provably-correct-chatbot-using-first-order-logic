@@ -216,3 +216,61 @@ def test_module_doctests():
     import doctest
     result = doctest.testmod(af)
     assert result.attempted > 0 and result.failed == 0
+
+
+# --- the test set reaches its target -------------------------------------------
+def test_test_set_keeps_generating_until_it_reaches_the_target(monkeypatch):
+    """Each call yields only 2 new questions per window, so it takes rounds."""
+    calls = []
+    lock = threading.Lock()
+
+    def gen(sentences, num_new_questions_reqd, stats, existing_qs_and_as=(), **_kw):
+        first = sentences[0].original.split()[-1].rstrip(".")
+        before = [q for q, _ in existing_qs_and_as]
+        with lock:
+            calls.append((first, len(before)))
+        n = len(before)
+        new = [(f"W{first}n{n + k} question?", "a") for k in range(2)]
+        return list(existing_qs_and_as) + new  # like the real one: old + new
+
+    monkeypatch.setattr(af, "gen_diverse_set_of_qs_and_as", gen)
+    qs = af.generate_test_set(SENTENCES[:20], 13, Statistics())
+    assert len(qs) == 13 and len({q for q, _ in qs}) == 13
+    # Two windows x 2 per round: four rounds, each told what it produced before.
+    assert max(n for _, n in calls) >= 6
+    assert ("0", 0) in calls and ("0", 2) in calls and ("0", 4) in calls
+    # Document order: window 0's questions before window 10's.
+    assert qs[0][0].startswith("W0n") and qs[-1][0].startswith("W10n")
+
+
+def test_similar_questions_do_not_count_toward_the_target(monkeypatch):
+    """Questions sharing a first word are 'similar' (FakeSimilarity)."""
+    seq = iter(range(1000))
+
+    def gen(sentences, num_new_questions_reqd, stats, existing_qs_and_as=(), **_kw):
+        # Every other new question repeats the first word "Same".
+        new = []
+        for _ in range(num_new_questions_reqd):
+            k = next(seq)
+            new.append((f"Same{'' if k % 2 else k} filler {k}?", "a") if k % 2 == 0
+                       else (f"Unique{k} question?", "a"))
+        return list(existing_qs_and_as) + new
+
+    monkeypatch.setattr(af, "gen_diverse_set_of_qs_and_as", gen)
+    qs = af.generate_test_set(SENTENCES[:10], 6, Statistics())
+    assert len(qs) == 6
+    first_words = [q.split()[0] for q, _ in qs]
+    assert len(set(first_words)) == 6  # all semantically distinct
+
+
+def test_stops_short_when_the_document_runs_out_of_questions(monkeypatch):
+    """A window that keeps adding nothing drops out; the loop ends."""
+    def gen(sentences, num_new_questions_reqd, stats, existing_qs_and_as=(), **_kw):
+        first = sentences[0].original.split()[-1].rstrip(".")
+        pool = [(f"Only{first}x{k} question?", "a") for k in range(3)]
+        before = {q for q, _ in existing_qs_and_as}
+        return list(existing_qs_and_as) + [qa for qa in pool if qa[0] not in before]
+
+    monkeypatch.setattr(af, "gen_diverse_set_of_qs_and_as", gen)
+    qs = af.generate_test_set(SENTENCES[:20], 50, Statistics())
+    assert len(qs) == 6  # 3 distinct per window is all there is
