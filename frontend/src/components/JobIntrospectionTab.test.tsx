@@ -93,7 +93,7 @@ test('summarizes the build: status, phases, counts and cost', async () => {
   const summary = await screen.findByRole('region', { name: 'Build summary' });
   expect(within(summary).getByText('succeeded')).toBeInTheDocument();
   const phases = within(summary).getByRole('list', { name: 'Build phases' });
-  expect(within(phases).getAllByRole('listitem')).toHaveLength(4);
+  expect(within(phases).getAllByRole('listitem')).toHaveLength(5);
   expect(summary).toHaveTextContent('3 sentences');
   expect(summary).toHaveTextContent('2/3 verified (2 needed)');
   expect(summary).toHaveTextContent('duration: 1.0 hours');
@@ -198,6 +198,8 @@ test('finished phases show how long they took', async () => {
       // 0.5 Bedrock + 6.5 credits x $0.04 = $0.76
       theory: { started_at: 1700000900, ended_at: 1700003600,
                 bedrock_dollars: 0.5, kiro_credits: 6.5 },
+      suggested_questions: { started_at: 1700003600, ended_at: 1700003720,
+                             bedrock_dollars: 0.08, kiro_credits: 0 },
     },
   };
   mockFetch({ '/introspection': { ...INTROSPECTION, state: timed, dollars_per_credit: 0.04 } });
@@ -207,6 +209,7 @@ test('finished phases show how long they took', async () => {
     'Load sentences (3 minutes, $0.34)',
     'Generate test set (12 minutes, $1.20)',
     'Build theory (45 minutes, $0.76)',
+    'Generating suggested questions (2 minutes, $0.08)',
     'Done',
   ]);
 });
@@ -241,4 +244,18 @@ test('FHIR builds say entries are not rewritten', async () => {
   const panel = await screen.findByRole('tabpanel');
   expect(panel).toHaveTextContent('FHIR entries are not rewritten');
   expect(panel).toHaveTextContent('—');
+});
+
+test('generating suggested questions is the step after Build theory', async () => {
+  const state = { ...STATE, status: 'running' as const, phase: 'suggested_questions' as const,
+                  finished_at: null };
+  mockFetch({ '/introspection': { ...INTROSPECTION, state, job: { ...JOB, status: 'running' } } });
+  render(<JobIntrospectionTab jobs={[{ ...JOB, status: 'running' }]} jobId="job-1" />);
+  const summary = await screen.findByRole('region', { name: 'Build summary' });
+  const steps = within(summary).getAllByRole('listitem').map((li) => li.textContent);
+  expect(steps[2]).toMatch(/^Build theory/);
+  expect(steps[3]).toBe('Generating suggested questions');
+  expect(within(summary).getByText('Generating suggested questions'))
+    .toHaveAttribute('aria-current', 'step');
+  expect(within(summary).getByText('running')).toBeInTheDocument();
 });

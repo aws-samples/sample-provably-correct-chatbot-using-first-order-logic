@@ -1794,7 +1794,6 @@ def run_job(job_id, theory_id, subject_id, name, source_text, doc_type,
     contract), leaving the API and data model untouched.
     """
     from pathlib import Path
-    import yaml as _yaml
 
     # Deferred imports: a failure here becomes a failed job, not a server crash.
     import globals as g
@@ -1840,8 +1839,7 @@ def run_job(job_id, theory_id, subject_id, name, source_text, doc_type,
     _jlog(job_id, f"{name}: building one theory over {unit_count} units "
                   f"({doc_type})")
 
-    from auto_formalizer import formalize_document, load_run_result, \
-        make_abs_run_file_path
+    from auto_formalizer import formalize_document
     import auto_formalizer as _af
 
     # The formalizer reports its progress (phases and kiro-cli sessions) as
@@ -1851,7 +1849,8 @@ def run_job(job_id, theory_id, subject_id, name, source_text, doc_type,
     recorder = None
     if ENABLED:
         try:
-            recorder = _introspection.Recorder(_s3, BUCKET, job_id)
+            recorder = _introspection.Recorder(_s3, BUCKET, job_id,
+                                               finish_later=True)
         except Exception as ex:  # pylint: disable=broad-except
             _jlog(job_id, f"introspection disabled: {ex}")
     on_progress = _progress_reporter(job_id, name)
@@ -1862,14 +1861,36 @@ def run_job(job_id, theory_id, subject_id, name, source_text, doc_type,
             recorder.handle(event)
     _af.set_progress_cb(_on_event)
 
-    _raise_if_cancelled(job_id)  # don't start the build if already killed
     try:
-        result = formalize_document()
+        _raise_if_cancelled(job_id)  # don't start the build if already killed
+        try:
+            result = formalize_document()
+        finally:
+            _af.set_progress_cb(None)  # never leak the hook across builds
+        _raise_if_cancelled(job_id)
+        _finish_build(job_id, theory_id, subject_id, name, result, recorder)
+    except BaseException:
+        # Killed or failed after the formalizer: the Job Details tab must not
+        # stay in "Generating suggested questions".
+        if recorder is not None:
+            recorder.finish(ok=False)
+        raise
     finally:
-        _af.set_progress_cb(None)  # never leak the hook across builds
         if recorder is not None:
             recorder.close()
-    _raise_if_cancelled(job_id)
+
+
+def _finish_build(job_id: str, theory_id: str, subject_id: str, name: str,
+                  result: dict, recorder) -> None:
+    """
+    After the formalizer: generate the suggested questions, store the theory
+    and mark the theory ready and the job finished. Raises when the formalizer
+    found no verified theory.
+    """
+    from pathlib import Path
+    import yaml as _yaml
+    from auto_formalizer import load_run_result, make_abs_run_file_path
+    from utils import get_global_stats
     run_file = Path(result["runs_path"])
     if not result["ok"]:
         raise RuntimeError(
@@ -1877,11 +1898,12 @@ def run_job(job_id, theory_id, subject_id, name, source_text, doc_type,
             f"{result['n_required']} correct answers out of {result['num_qs']} "
             "test questions (see Job Details)")
 
-    # The theory is built; what remains (suggested questions, storing the
-    # theory) can take a while, so say so.
-    _update_job(job_id, progress="post-processing",
-                log_tail=_tail(f"{name}: post-processing"))
+    # The theory is built; generating its suggested questions can take a
+    # while, so say so. Their Bedrock spend is this step's cost in Job Details.
+    _update_job(job_id, progress="generating suggested questions",
+                log_tail=_tail(f"{name}: generating suggested questions"))
     _jlog(job_id, f"{name}: post-processing")
+    bedrock_before = get_global_stats().total_inference_cost
 
     # 4. Read the build's result, bake in the suggested-question set, and
     #    store it in S3.
@@ -1942,6 +1964,9 @@ def run_job(job_id, theory_id, subject_id, name, source_text, doc_type,
     summary = (f"{result['n_correct']}/{result['num_qs']} test questions "
                f"verified, {result['num_sentences']} sentences")
     _update_theory(theory_id, status="ready", theory_s3_key=thy_key)
+    if recorder is not None:
+        recorder.finish(ok=True, extra_bedrock_dollars=(
+            get_global_stats().total_inference_cost - bedrock_before))
     _update_job(job_id, status="finished", progress=f"finished ({summary})",
                 finished_at=_now(),
                 log_tail=_tail(f"{name}: build finished ({summary})"))

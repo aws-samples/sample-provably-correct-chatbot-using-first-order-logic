@@ -817,6 +817,7 @@ function formatTime(epochSeconds: number): string {
  */
 export function buildingLabel(job: Job | undefined): string {
   const progress = job?.progress ?? '';
+  if (/suggested questions/i.test(progress)) return 'building — suggested questions';
   if (/post-?processing/i.test(progress)) return 'building — post-processing';
   const session = progress.match(/session\s+(\d+)/i);
   if (session) return `building — session ${session[1]}`;

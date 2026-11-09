@@ -38,6 +38,7 @@ const PHASES: { key: BuildPhase; label: string }[] = [
   { key: 'sentences', label: 'Load sentences' },
   { key: 'test_set', label: 'Generate test set' },
   { key: 'theory', label: 'Build theory' },
+  { key: 'suggested_questions', label: 'Generating suggested questions' },
   { key: 'done', label: 'Done' },
 ];
 

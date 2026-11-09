@@ -74,6 +74,8 @@ test('a building theory shows its current step, then post-processing', () => {
       onChanged={jest.fn()} />
   );
   expect(screen.getByText('building — session 2')).toBeInTheDocument();
+  rerender(<TheoriesTab {...LINKS} theories={[building]} jobs={[job('generating suggested questions')]} onChanged={jest.fn()} />);
+  expect(screen.getByText('building — suggested questions')).toBeInTheDocument();
   rerender(<TheoriesTab {...LINKS} theories={[building]} jobs={[job('post-processing')]} onChanged={jest.fn()} />);
   expect(screen.getByText('building — post-processing')).toBeInTheDocument();
 });

@@ -574,3 +574,52 @@ def test_older_theories_take_answers_from_the_recorded_test_set(store_env):
     out = store._suggested_qas(["Q2?", "Other?"], {}, JOB)
     assert out == [{"question": "Q2?", "answer": "A2", "source": "test set"},
                    {"question": "Other?", "answer": None, "source": "variation"}]
+
+
+# --- suggested-questions step (finish_later) ----------------------------------
+def _later():
+    clock = iter(range(1000, 100000))
+    s3 = FakeS3()
+    return ji.Recorder(s3, "bucket", JOB, clock=lambda: next(clock),
+                       start_thread=False, finish_later=True), s3
+
+
+def test_a_built_theory_goes_on_to_generate_suggested_questions():
+    r, s3 = _later()
+    start_build(r)
+    session(r, 1)
+    r.handle(dict(type="end", ok=True, theory="(t1)", n_correct=2, n_required=2,
+                  correct_questions=["Q1?", "Q2?"], duration=60.0,
+                  spent={"bedrock_dollars": 1.0, "kiro_credits": 0.5}))
+    st = state_of(s3)
+    assert st["status"] == "running" and st["phase"] == "suggested_questions"
+    assert st["finished_at"] is None and st["n_correct"] == 2
+    assert st["phase_times"]["theory"]["ended_at"] is not None
+
+    r.finish(ok=True, extra_bedrock_dollars=0.25)
+    st = state_of(s3)
+    assert st["status"] == "succeeded" and st["phase"] == "done"
+    sq = st["phase_times"]["suggested_questions"]
+    assert sq["ended_at"] >= sq["started_at"]
+    assert sq["bedrock_dollars"] == pytest.approx(0.25) and sq["kiro_credits"] == 0.0
+    assert st["duration"] == st["finished_at"] - st["started_at"]
+
+
+def test_a_failure_after_the_theory_is_built_fails_the_build():
+    r, s3 = _later()
+    start_build(r)
+    r.handle(dict(type="end", ok=True, theory="(t1)", n_correct=2, n_required=2,
+                  spent={"bedrock_dollars": 1.0, "kiro_credits": 0.5}))
+    r.finish(ok=False)
+    st = state_of(s3)
+    assert st["status"] == "failed" and st["phase"] == "done"
+    r.finish(ok=True)  # a finished build stays finished
+    assert state_of(s3)["status"] == "failed"
+
+
+def test_an_unverified_theory_ends_without_the_extra_step():
+    r, s3 = _later()
+    start_build(r)
+    r.handle(dict(type="end", ok=False, theory=None, n_correct=0, n_required=2))
+    st = state_of(s3)
+    assert st["status"] == "failed" and "suggested_questions" not in st["phase_times"]

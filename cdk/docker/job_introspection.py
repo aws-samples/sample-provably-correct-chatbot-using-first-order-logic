@@ -49,8 +49,10 @@ STATE_VERSION = 2
 # Build statuses written by the recorder. The UI adds "stopped" (the job
 # ended while the build was still running, e.g. it was killed).
 RUNNING, SUCCEEDED, FAILED = "running", "succeeded", "failed"
-# Phases, in order.
-PHASES = ("sentences", "test_set", "theory", "done")
+# Phases, in order. "suggested_questions" is recorded only by a Recorder made
+# with finish_later=True (the web app's builds), which runs that step after
+# the formalizer ends and then calls finish().
+PHASES = ("sentences", "test_set", "theory", "suggested_questions", "done")
 
 # Bounds on one log request, so the endpoint stays well inside the CloudFront
 # origin timeout even for a very chatty build.
@@ -76,7 +78,12 @@ class Recorder:
 
     def __init__(self, s3, bucket: str, job_id: str, flush_secs: float = 3.0,
                  clock: Callable[[], float] = time.time,
-                 start_thread: bool = True):
+                 start_thread: bool = True, finish_later: bool = False):
+        # finish_later: a successful formalizer "end" starts the
+        # suggested_questions phase instead of ending the build; finish()
+        # ends it once the caller's post-processing is done.
+        self._finish_later = finish_later
+        self._end_spent: Optional[dict] = None
         self._s3 = s3
         self._bucket = bucket
         self._job_id = job_id
@@ -208,12 +215,18 @@ class Recorder:
 
     def _end(self, event: dict, now: int) -> List[tuple]:
         ok = bool(event.get("ok"))
-        self._enter_phase("done", now, event.get("spent"))
-        self.state.update(status=SUCCEEDED if ok else FAILED,
-                          finished_at=now, duration=event.get("duration"),
-                          n_correct=event.get("n_correct"),
+        self.state.update(n_correct=event.get("n_correct"),
                           n_required=event.get("n_required",
                                                self.state["n_required"]))
+        if ok and self._finish_later:
+            # The theory is built; the build goes on to generate its suggested
+            # questions and stays running until finish().
+            self._end_spent = dict(event.get("spent") or {})
+            self._enter_phase("suggested_questions", now, event.get("spent"))
+        else:
+            self._enter_phase("done", now, event.get("spent"))
+            self.state.update(status=SUCCEEDED if ok else FAILED,
+                              finished_at=now, duration=event.get("duration"))
         for session in self.state["sessions"]:
             if session["status"] == RUNNING:
                 session.update(status="done", finished_at=now)
@@ -226,6 +239,28 @@ class Recorder:
         if self._qas:
             puts.append(self._qas_put(set(event.get("correct_questions") or [])))
         return puts
+
+    def finish(self, ok: bool, extra_bedrock_dollars: float = 0.0) -> None:
+        """
+        End a finish_later build after its post-processing. The
+        suggested_questions phase's spend is `extra_bedrock_dollars` (its
+        Bedrock calls) on top of what the formalizer had spent.
+        """
+        with self._lock:
+            if self.state["status"] != RUNNING:
+                return
+            now = int(self._clock())
+            spent = None
+            if self._end_spent is not None:
+                spent = dict(self._end_spent)
+                spent["bedrock_dollars"] = (float(spent.get("bedrock_dollars") or 0.0)
+                                            + max(0.0, float(extra_bedrock_dollars)))
+            self._enter_phase("done", now, spent)
+            self.state.update(status=SUCCEEDED if ok else FAILED, finished_at=now,
+                              duration=now - int(self.state["started_at"]),
+                              updated_at=now)
+            self._dirty = True
+        self.flush()
 
     def _qas_put(self, correct: set) -> tuple:
         doc = {"n_required": self.state["n_required"],

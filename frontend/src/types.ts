@@ -128,7 +128,7 @@ export interface JobLogs {
 // unit of work: load the sentences, generate the test set, then one or more
 // kiro-cli sessions until the theory verifies or the budget runs out.
 export type BuildStatus = 'running' | 'succeeded' | 'failed';
-export type BuildPhase = 'sentences' | 'test_set' | 'theory' | 'done';
+export type BuildPhase = 'sentences' | 'test_set' | 'theory' | 'suggested_questions' | 'done';
 // build = the first session; feedback = resumed with the harness's
 // verification report; stall_resume = resumed after the stall watchdog.
 export type SessionKind = 'build' | 'feedback' | 'stall_resume';
