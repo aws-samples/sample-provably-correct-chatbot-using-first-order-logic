@@ -67,7 +67,7 @@ export interface TheoryDetail extends TheorySummary {
   // The raw theory YAML (the build's result), available for anyone who wants it.
   computed_theory_yaml?: string;
   // The "suggested questions" (the test-set questions the build
-  // verified), surfaced as a [Q&As] artifact. Empty until the build is ready.
+  // verified), surfaced as the [Test set] artifact. Empty until the build is ready.
   suggested_questions?: string[];
   // The same questions with their answers: a test-set question's expected
   // answer (what the theory was verified against), or the answer the chatbot
