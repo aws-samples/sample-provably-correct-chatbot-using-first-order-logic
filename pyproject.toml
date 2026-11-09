@@ -26,7 +26,7 @@ dependencies = [
     "python-dotenv>=1.0",
     # The web service's Cognito auth (cdk/docker/auth.py), for running it locally.
     "itsdangerous>=2.2",
-    "python-jose[cryptography]>=3.5",
+    "PyJWT[crypto]>=2.10",
 ]
 
 [dependency-groups]

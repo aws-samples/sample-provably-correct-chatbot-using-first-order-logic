@@ -34,5 +34,5 @@ opentelemetry-sdk
 
 # App-level Cognito auth: verify Cognito OIDC tokens (JWKS) and sign the
 # app's own session cookie.
-python-jose[cryptography]
+PyJWT[crypto]
 itsdangerous

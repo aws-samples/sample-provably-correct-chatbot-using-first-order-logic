@@ -24,6 +24,9 @@ Design notes:
     (CloudFront -> ALB), so the container env needs no CloudFront domain and
     there is no CDK resource cycle.
 """
+import base64
+import hashlib
+import hmac
 import os
 import time
 from typing import Optional
@@ -33,8 +36,7 @@ import requests
 from fastapi import Request
 from fastapi.responses import RedirectResponse, JSONResponse
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
-from jose import jwt
-from jose.utils import base64url_decode  # noqa: F401  (ensures crypto backend)
+import jwt  # PyJWT (with the cryptography backend, for RS256)
 
 # --- Configuration (from container env) ----------------------------------
 USER_POOL_ID = os.environ.get("COGNITO_USER_POOL_ID", "")
@@ -162,6 +164,43 @@ def current_user(request: Request) -> Optional[dict]:
     return _read_session(request)
 
 
+# --- ID token verification --------------------------------------------------
+def _at_hash(access_token: str) -> str:
+    """OIDC at_hash for RS256: base64url of the left half of SHA-256."""
+    digest = hashlib.sha256(access_token.encode("ascii")).digest()
+    return base64.urlsafe_b64encode(digest[: len(digest) // 2]).rstrip(b"=").decode("ascii")
+
+
+def verify_id_token(id_token: str, access_token: Optional[str], jwks: dict) -> dict:
+    """
+    The claims of a Cognito ID token, after checking its RS256 signature
+    against the pool's JWKS (by key id), expiry, audience (this app client),
+    issuer (this pool), token_use ("id"), and that its at_hash matches the
+    access token it was issued with. Raises on any failure.
+    """
+    kid = jwt.get_unverified_header(id_token).get("kid")
+    jwk = next((k for k in jwks.get("keys", []) if k.get("kid") == kid), None)
+    if jwk is None:
+        raise ValueError("unknown signing key")
+    claims = jwt.decode(
+        id_token,
+        jwt.PyJWK(jwk, algorithm="RS256").key,
+        algorithms=["RS256"],
+        audience=CLIENT_ID,
+        issuer=_ISSUER,
+        options={"require": ["exp", "iat", "aud", "iss", "sub"]},
+    )
+    if claims.get("token_use") != "id":
+        raise ValueError("not an ID token")
+    # Cognito ID tokens carry at_hash, which binds them to the access token
+    # issued with them.
+    if "at_hash" in claims:
+        if not access_token or not hmac.compare_digest(
+                claims["at_hash"], _at_hash(access_token)):
+            raise ValueError("at_hash does not match the access token")
+    return claims
+
+
 # --- OAuth flow -----------------------------------------------------------
 def login(request: Request) -> RedirectResponse:
     """Redirect to the Cognito Hosted UI authorization endpoint."""
@@ -206,22 +245,8 @@ def callback(request: Request):
     id_token = tokens["id_token"]
     access_token = tokens.get("access_token")
 
-    # Verify the ID token signature + claims against the pool's JWKS.
-    # Cognito ID tokens carry an `at_hash` claim bound to the access token, so
-    # the access token must be supplied for jose to validate it.
-    headers = jwt.get_unverified_header(id_token)
-    key = next((k for k in _get_jwks()["keys"] if k["kid"] == headers["kid"]), None)
-    if key is None:
-        return JSONResponse({"detail": "unknown signing key"}, status_code=401)
     try:
-        claims = jwt.decode(
-            id_token,
-            key,
-            algorithms=["RS256"],
-            audience=CLIENT_ID,
-            issuer=_ISSUER,
-            access_token=access_token,
-        )
+        claims = verify_id_token(id_token, access_token, _get_jwks())
     except Exception as ex:  # pylint: disable=broad-except
         return JSONResponse({"detail": f"invalid id token: {ex}"}, status_code=401)
 

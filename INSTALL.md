@@ -117,5 +117,5 @@ uv run pytest tests                              # formalizer, kiro engine, proc
 ```
 
 The web-service tests need its extra dependencies:
-`uv pip install fastapi httpx itsdangerous 'python-jose[cryptography]'`.
+`uv pip install fastapi httpx itsdangerous 'PyJWT[crypto]'`.
 None of the tests call Bedrock, kiro-cli or cvc5.
