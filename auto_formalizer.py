@@ -150,14 +150,18 @@ def num_qs_and_as(num_sentences: int) -> int:
     return rv
 
 
-def num_correct_answers_reqd(num_sentences: int, num_qs: int) -> int:
+def num_correct_answers_reqd(num_qs: int) -> int:
     """
-    Correct answers the theory needs: ncar_ratio of the sentence count, but
-    at least 1 and allowing for two errors in a test set of `num_qs`.
+    Correct answers the theory needs: ncar_ratio of the test set's `num_qs`
+    questions, but at least 1 and allowing for two errors.
+
+    It is a fraction of the test set, not of the sentence count: a FHIR
+    document has twice as many test questions as sentences, and a test set
+    that came out short of its target is judged on the questions it has.
     """
-    rv = math.ceil(num_sentences * g.p.ncar_ratio)
+    rv = math.ceil(num_qs * g.p.ncar_ratio)
     rv = max(1, min(rv, num_qs - 2))
-    print(f"num_correct_answers_reqd {num_sentences} {num_qs} -> {rv}")
+    print(f"num_correct_answers_reqd {num_qs} -> {rv}")
     return rv
 
 
@@ -1125,7 +1129,7 @@ def formalize_document() -> dict:
         if len(qs_and_as) < 3:
             raise ValueError(f"only {len(qs_and_as)} test questions could be "
                              "generated; at least 3 are needed")
-        n_required = num_correct_answers_reqd(len(sentences), len(qs_and_as))
+        n_required = num_correct_answers_reqd(len(qs_and_as))
         report_progress(dict(type="test_set",
                              qs_and_as=[list(qa) for qa in qs_and_as],
                              n_required=n_required))

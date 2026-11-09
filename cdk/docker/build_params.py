@@ -42,7 +42,7 @@ def specs() -> List[Dict[str, Any]]:
              label="Required correct ratio", min=0.1, max=1.0, step=0.05,
              default=_params_default("ncar_ratio"),
              help="Correct test answers the theory needs, as a fraction of "
-                  "the sentence count (at most the test-set size minus two)."),
+                  "the test set (at most the test-set size minus two)."),
         dict(key="qa_window_sentences", group="Test set", type="int",
              label="Question window (sentences)", min=2, max=200, step=1,
              default=_params_default("qa_window_sentences"),

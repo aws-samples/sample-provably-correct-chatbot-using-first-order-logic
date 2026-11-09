@@ -24,7 +24,7 @@ class Params:
     # Questions to generate per sentence, for text and for FHIR documents.
     qas_per_sentence: float = 1.0
     fhir_qas_per_sentence: float = 2.0
-    # Correct answers the theory needs, as a fraction of the sentence count
+    # Correct answers the theory needs, as a fraction of the test set
     # (clamped to the test-set size minus two).
     ncar_ratio: float = 0.85
     # The test set is generated window by window: each window of this many

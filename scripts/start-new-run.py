@@ -46,7 +46,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--ncar-ratio", type=float, default=defaults.ncar_ratio,
-        help="Correct answers required, as a fraction of the sentence count."
+        help="Correct answers required, as a fraction of the test set."
     )
     parser.add_argument(
         "--kiro-model", type=str, default=defaults.kiro_model,

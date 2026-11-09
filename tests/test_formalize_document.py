@@ -111,8 +111,11 @@ def test_test_set_size_and_target():
     assert af.num_qs_and_as(40) == 40 and af.num_qs_and_as(1) == 3
     g.subject_type = "fhir"
     assert af.num_qs_and_as(40) == 80
-    assert af.num_correct_answers_reqd(40, 40) == 32
-    assert af.num_correct_answers_reqd(40, 20) == 18  # allows two errors
+    # A fraction of the test set: a FHIR document's 80 questions need 64.
+    assert af.num_correct_answers_reqd(80) == 64
+    assert af.num_correct_answers_reqd(40) == 32
+    assert af.num_correct_answers_reqd(8) == 6  # allows two errors
+    assert af.num_correct_answers_reqd(1) == 1
 
 
 def test_max_sentences_caps_the_document(monkeypatch):
