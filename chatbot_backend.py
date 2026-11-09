@@ -48,9 +48,33 @@ def answer_q_(theory: str,
                 f"{ex}\n{traceback.format_exc()}")
 
 
+UNKNOWN_ANSWER = "I don't know"
+
+
+def is_unknown_answer(answer: Optional[str]) -> bool:
+    """
+    True for no answer, or an attempt that ended in "I don't know". A
+    satisfiable logical form whose model does not answer the question (e.g.
+    it binds the answer to an unrelated entity, or the model is empty) is
+    translated to "I don't know"; that is a failed attempt, not an answer.
+
+    >>> [is_unknown_answer(a) for a in [None, "", "I don't know", "I don't know.",
+    ...                                  "I do not know", "The Democratic Party."]]
+    [True, True, True, True, True, False]
+    """
+    if answer is None:
+        return True
+    text = answer.strip().strip(".").replace("\u2019", "'").lower()
+    return text in ("", "i don't know", "i do not know")
+
+
 def answer_q_from_chatbot(question: str, num_jobs: int = 10) -> str:
     """
     Given a question in natural language, return an answer using the chatbot.
+
+    Runs `num_jobs` attempts in parallel and returns the first proved answer.
+    An attempt that ends in "I don't know" does not stop the others: the
+    question is "I don't know" only when every attempt is.
     """
     global THEORY, PREV_QUESTIONS
     PREV_QUESTIONS.append(question)
@@ -61,22 +85,24 @@ def answer_q_from_chatbot(question: str, num_jobs: int = 10) -> str:
         pool_size=num_jobs,
         do_spawn_dupes=False,
         quit_when_get_first_result=True,
-        # Each worker result is a (answer, stats, duration, errors) tuple; a
-        # provable answer has a non-None first element. starmap_with_dupes
-        # requires this predicate whenever quit_when_get_first_result is True.
-        job_successful_p=lambda result: result is not None and result[0] is not None)
+        # starmap_with_dupes calls this with the worker's ANSWER (the first
+        # element of its (answer, stats, duration, errors) tuple), and needs
+        # it whenever quit_when_get_first_result is True. Only a proved answer
+        # stops the other attempts. (It used to index answer[0], the first
+        # character, so "I don't know" counted as success and won the race.)
+        job_successful_p=lambda answer: not is_unknown_answer(answer))
     print(f"aqfc: chatbot answers: {results}")
     # results is a list of (answer, stats, duration, errors) tuples; keep the
     # answers that are non-None (i.e. the prover found a provable answer).
     actual_results = [
         res[0] for res in results
-        if res is not None and res[0] is not None
+        if res is not None and not is_unknown_answer(res[0])
     ]
     print(f"aqfc: actual results: {actual_results}")
     if len(actual_results) > 0:
         return random.choice(actual_results)
     else:
-        return "I don't know"
+        return UNKNOWN_ANSWER
 
 
 def im_feeling_lucky():

@@ -1061,6 +1061,11 @@ def starmap_with_dupes(
     durations_str = " ".join(f"{d/60.0:.2f}"
                              for d in sorted(list(durations.values())))
     print(f"swd: durations: {durations_str}")
+    if quit_when_get_first_result:
+        # Every run finished and none succeeded (a success returns above):
+        # return the failed results so the caller sees them, rather than
+        # raising KeyError for the jobs that have no successful result.
+        return return_fn(failed_results)
     return return_fn([results[job_num] for job_num in job_num_2_args.keys()])
 
 

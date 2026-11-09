@@ -36,3 +36,17 @@ def straggler_worker(pid_file, job_num, retries):
         f.write(f"{os.getpid()}\n{child.pid}\n")
     time.sleep(300)
     return None
+
+
+def answer_worker(theory, question, job_num, retries):
+    """
+    A chatbot attempt (chatbot_backend.answer_q_): job 0 gives up quickly
+    with "I don't know", job 2 proves an answer a little later, the rest find
+    nothing. With question "none", every attempt gives up.
+    """
+    from utils import Statistics
+    if question == "none" or job_num != 2:
+        time.sleep(0.1 if job_num == 0 else 0.3)
+        return ("I don't know" if job_num == 0 else None), Statistics(), 0.1, None
+    time.sleep(0.8)
+    return "The Democratic Party.", Statistics(), 0.8, None
