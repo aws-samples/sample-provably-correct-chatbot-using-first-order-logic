@@ -26,7 +26,7 @@ class Params:
     fhir_qas_per_sentence: float = 2.0
     # Correct answers the theory needs, as a fraction of the sentence count
     # (clamped to the test-set size minus two).
-    ncar_ratio: float = 0.8
+    ncar_ratio: float = 0.85
     # The test set is generated window by window: each window of this many
     # consecutive sentences gets its share of the questions, so they cover
     # the whole document, and the windows run in parallel.

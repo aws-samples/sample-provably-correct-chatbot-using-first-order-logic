@@ -305,7 +305,7 @@ def useful?(theory, test_set, n_required):
     return num_correct >= n_required
 ```
 
-(When cvc5 decides that a theory is satisfiable it also returns a model, a set of assignments to variables that demonstrates the satisfiability of the theory. For our purposes, the model is an answer to the question.) `n_required` is `ncar_ratio` (default 0.8) of the sentence count, allowing for at least two wrong answers.
+(When cvc5 decides that a theory is satisfiable it also returns a model, a set of assignments to variables that demonstrates the satisfiability of the theory. For our purposes, the model is an answer to the question.) `n_required` is `ncar_ratio` (default 0.85) of the sentence count, allowing for at least two wrong answers.
 
 This does not rely on the expected answers being completely accurate; the LLM that generated them will sometimes confabulate. If a sufficient fraction of the answers the theorem prover produces match the expected (but maybe wrong) answers, it is vanishingly unlikely that the theory is wrong in exactly the same way the LLM confabulated. If 100% of the questions are answered correctly, we should be suspicious, as not all the expected answers will be correct.
 

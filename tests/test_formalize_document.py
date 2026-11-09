@@ -134,7 +134,7 @@ def test_formalize_document_builds_one_theory_and_saves_it(monkeypatch):
         seen.update(sentences=sentences, qs=qs_and_as, n=n_correct_answers_reqd)
         on_event(dict(type="session_start", session=1, kind="build"))
         return dict(theory="(declare-const x Int)", n_correct_answers_reqd=n_correct_answers_reqd,
-                    correctly_answered_questions=[q for q, _ in qs_and_as[:16]])
+                    correctly_answered_questions=[q for q, _ in qs_and_as[:17]])
 
     monkeypatch.setattr(kf, "kiro_create_valid_useful_theory", fake_kiro)
     events = []
@@ -146,8 +146,8 @@ def test_formalize_document_builds_one_theory_and_saves_it(monkeypatch):
 
     # ONE unit over every sentence of both documents.
     assert seen["sentences"] == SENTENCES[:20]
-    assert len(seen["qs"]) == 20 and seen["n"] == 16
-    assert summary["ok"] is True and summary["n_correct"] == 16
+    assert len(seen["qs"]) == 20 and seen["n"] == 17  # ceil(20 x the default ncar_ratio 0.85)
+    assert summary["ok"] is True and summary["n_correct"] == 17
     assert summary["num_sentences"] == 20 and summary["num_qs"] == 20
     assert [e["type"] for e in events] == ["start", "phase", "test_set", "phase",
                                            "session_start", "end"]

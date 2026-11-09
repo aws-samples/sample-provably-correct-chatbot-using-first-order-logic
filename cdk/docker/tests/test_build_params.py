@@ -17,7 +17,7 @@ import build_params as bp  # noqa: E402
 def test_defaults_are_the_params_defaults(monkeypatch):
     monkeypatch.delenv("CHATBOT_KIRO_MODEL", raising=False)
     d = bp.defaults()
-    assert d == {"qas_per_sentence": 1.0, "ncar_ratio": 0.8,
+    assert d == {"qas_per_sentence": 1.0, "ncar_ratio": 0.85,
                  "qa_window_sentences": 10, "kiro_model": "",
                  "kiro_max_attempts": 3, "kiro_timeout_seconds": 14400,
                  "kiro_idle_timeout_seconds": 480}
