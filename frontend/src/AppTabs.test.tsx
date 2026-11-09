@@ -11,6 +11,10 @@ const job = (id: string, name: string) => ({
   finished_at: 1700003600,
 });
 const JOBS = [job('j1', 'Cape Canaveral'), job('j2', 'Hypertension')];
+const THEORIES = [{
+  id: 't-j1', name: 'Cape Canaveral', status: 'ready', sentence_count: 3,
+  created_at: 1700000000, job_id: 'j1', doc_type: 'text',
+}];
 
 beforeEach(() => {
   localStorage.clear();
@@ -20,7 +24,7 @@ beforeEach(() => {
     const body = url.endsWith('/api/jobs')
       ? { jobs: JOBS }
       : url.endsWith('/api/theories')
-        ? { theories: [] }
+        ? { theories: THEORIES }
         : url.includes('/introspection')
           ? { job: JOBS[0], available: false, state: null, note: 'Nothing recorded.' }
           : {};
@@ -30,16 +34,16 @@ beforeEach(() => {
 
 const tabNames = () => screen.getAllByRole('tab').map((t) => t.textContent);
 
-test('there is no general Job Introspection tab', async () => {
+test('there is no general Job Details tab', async () => {
   render(<App />);
   await screen.findByRole('button', { name: 'Cape Canaveral' });
-  expect(tabNames()).toEqual(['Chatbot', 'Theories', 'Jobs']);
+  expect(tabNames()).toEqual(['Theories', 'Jobs']);
 });
 
 test('clicking a job name opens its own tab, and again just switches to it', async () => {
   render(<App />);
   fireEvent.click(await screen.findByRole('button', { name: 'Cape Canaveral' }));
-  expect(screen.getByRole('tab', { name: 'Job Introspection (Cape Canaveral)' }))
+  expect(screen.getByRole('tab', { name: 'Job Details (Cape Canaveral)' }))
     .toHaveAttribute('aria-selected', 'true');
   expect(await screen.findByText('Nothing recorded.')).toBeInTheDocument();
 
@@ -48,10 +52,10 @@ test('clicking a job name opens its own tab, and again just switches to it', asy
   fireEvent.click(screen.getByRole('tab', { name: 'Jobs' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Cape Canaveral' }));
   expect(tabNames()).toEqual([
-    'Chatbot', 'Theories', 'Jobs',
-    'Job Introspection (Cape Canaveral)', 'Job Introspection (Hypertension)',
+    'Theories', 'Jobs',
+    'Job Details (Cape Canaveral)', 'Job Details (Hypertension)',
   ]);
-  expect(screen.getByRole('tab', { name: 'Job Introspection (Cape Canaveral)' }))
+  expect(screen.getByRole('tab', { name: 'Job Details (Cape Canaveral)' }))
     .toHaveAttribute('aria-selected', 'true');
 });
 
@@ -63,11 +67,27 @@ test('the close button removes a tab, and open tabs are remembered', async () =>
   unmount();
 
   render(<App />);
-  expect(screen.getByRole('tab', { name: 'Job Introspection (Hypertension)' }))
+  expect(screen.getByRole('tab', { name: 'Job Details (Hypertension)' }))
     .toHaveAttribute('aria-selected', 'true');
-  fireEvent.click(screen.getByRole('button', { name: 'Close Job Introspection (Hypertension)' }));
-  expect(tabNames()).toEqual(['Chatbot', 'Theories', 'Jobs', 'Job Introspection (Cape Canaveral)']);
+  fireEvent.click(screen.getByRole('button', { name: 'Close Job Details (Hypertension)' }));
+  expect(tabNames()).toEqual(['Theories', 'Jobs', 'Job Details (Cape Canaveral)']);
   // Closing the active tab falls back to the Jobs tab.
   expect(screen.getByRole('tab', { name: 'Jobs' })).toHaveAttribute('aria-selected', 'true');
   expect(within(screen.getByRole('tablist')).queryByText(/Hypertension/)).not.toBeInTheDocument();
+});
+
+test('a theory row opens its Job Details tab, and chat tabs sit before job tabs', async () => {
+  localStorage.setItem('chatbot.activeTab', 'theories');
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Job details' }));
+  expect(screen.getByRole('tab', { name: 'Job Details (Cape Canaveral)' }))
+    .toHaveAttribute('aria-selected', 'true');
+  fireEvent.click(screen.getByRole('tab', { name: 'Theories' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Chat' }));
+  expect(tabNames()).toEqual([
+    'Theories', 'Jobs', 'Chat (Cape Canaveral)', 'Job Details (Cape Canaveral)',
+  ]);
+  // Closing the active chat tab falls back to the Theories tab.
+  fireEvent.click(screen.getByRole('button', { name: 'Close Chat (Cape Canaveral)' }));
+  expect(screen.getByRole('tab', { name: 'Theories' })).toHaveAttribute('aria-selected', 'true');
 });

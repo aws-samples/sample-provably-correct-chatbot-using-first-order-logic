@@ -1,7 +1,7 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   createTheoryFromFile,
   createTheoryFromText,
@@ -12,6 +12,9 @@ import {
   killJob,
   fetchSamplePatients,
   isWikipediaUrl,
+  renameTheory,
+  theoryNameTaken,
+  ApiError,
 } from '../api';
 import { TheorySummary, DocType, SamplePatient, Job, BuildParams } from '../types';
 import { SentencesModal } from './SentencesModal';
@@ -22,20 +25,21 @@ interface TheoriesTabProps {
   theories: TheorySummary[];
   jobs: Job[];
   onChanged: () => void; // ask the parent to refresh theories+jobs
-  // Id of the "current" theory (the one selected in the Chatbot tab). Its row is
-  // highlighted so it's easy to spot which theory the chatbot is using.
-  currentTheoryId?: string;
+  onOpenChat: (theoryId: string) => void; // open the theory's "Chat (<name>)" tab
+  onOpenJob: (jobId: string) => void; // open the job's "Job Details (<name>)" tab
 }
 
 type Mode = 'paste' | 'upload' | 'sample' | 'wikipedia';
 
 /**
- * Tab 3: available theories + an "Add theory" form. Adding a theory (by pasting
- * a source document, uploading a file, or picking a baked-in Synthea sample
- * patient) POSTs to /api/theories, which creates a WikiLogifier job (visible in
- * tab 4) and a "building" theory here.
+ * The Theories tab: the theories, each with links to its chat and Job Details
+ * tabs and a rename pencil, plus an "Add theory" form. Adding a theory (by
+ * pasting a source document, uploading a file, picking a baked-in Synthea
+ * sample patient or giving a Wikipedia URL) POSTs to /api/theories, which
+ * creates a build job (visible in the Jobs tab) and a "building" theory here.
+ * Theory names are unique.
  */
-export function TheoriesTab({ theories, jobs, onChanged, currentTheoryId }: TheoriesTabProps) {
+export function TheoriesTab({ theories, jobs, onChanged, onOpenChat, onOpenJob }: TheoriesTabProps) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>('paste');
   const [docType, setDocType] = useState<DocType>('auto');
@@ -47,6 +51,7 @@ export function TheoriesTab({ theories, jobs, onChanged, currentTheoryId }: Theo
   const [wikiUrl, setWikiUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const nameInput = useRef<HTMLInputElement>(null);
   // Which theory's sentence-list modal is open (null = closed).
   const [sentencesFor, setSentencesFor] = useState<TheorySummary | null>(null);
   // Which theory artifact (source document / SMT-LIB theory) is open in a modal
@@ -205,6 +210,14 @@ export function TheoriesTab({ theories, jobs, onChanged, currentTheoryId }: Theo
       setError('Please enter a page URL.');
       return;
     }
+    // Theory names are unique, so a clash must be renamed before building.
+    // The server refuses it too (409); checking here saves the round trip.
+    const taken = theoryNameTaken(theories, effectiveName);
+    if (taken) {
+      setError(nameTakenMessage(taken.name));
+      nameInput.current?.focus();
+      return;
+    }
     // The source is complete: choose the build's parameters next.
     setParamsFor({ kind: 'create' });
   };
@@ -226,16 +239,29 @@ export function TheoriesTab({ theories, jobs, onChanged, currentTheoryId }: Theo
       setParamsFor(null);
       reset();
       onChanged();
+    } catch (e) {
+      // The name was taken meanwhile (e.g. in another browser tab): close the
+      // dialog and ask for a different name in the form.
+      if (e instanceof ApiError && e.status === 409) {
+        setParamsFor(null);
+        setError(e.message);
+        onChanged();
+        nameInput.current?.focus();
+        return;
+      }
+      throw e;
     } finally {
       setSubmitting(false);
     }
   };
 
-  const createLabel =
+  // The name the new theory will get: the one typed, else (sample/wikipedia
+  // only) the server's default, the patient's name or the page URL.
+  const effectiveName =
     name.trim() ||
     (mode === 'wikipedia' ? wikiUrl.trim() : '') ||
-    (mode === 'sample' ? samplePatients.find((p) => p.id === sampleId)?.name ?? '' : '') ||
-    'new theory';
+    (mode === 'sample' ? samplePatients.find((p) => p.id === sampleId)?.name ?? sampleId : '');
+  const createLabel = effectiveName || 'new theory';
 
   // Red warning when the entered URL is not a Wikipedia page: the HTML->sentence
   // parser is tuned for Wikipedia article markup, so other sites may extract
@@ -288,7 +314,6 @@ export function TheoriesTab({ theories, jobs, onChanged, currentTheoryId }: Theo
         />
       )}
       <div className="theories-header">
-        <h3>Available theories</h3>
         <label className="show-inactive-toggle">
           <input
             type="checkbox"
@@ -310,6 +335,7 @@ export function TheoriesTab({ theories, jobs, onChanged, currentTheoryId }: Theo
             </label>
             <input
               id="theory-name"
+              ref={nameInput}
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={
@@ -489,11 +515,10 @@ export function TheoriesTab({ theories, jobs, onChanged, currentTheoryId }: Theo
             </tr>
           )}
           {visibleTheories.map((t) => (
-            <tr
-              key={t.id}
-              className={t.id === currentTheoryId ? 'current-theory-row' : undefined}
-            >
-              <td>{t.name}</td>
+            <tr key={t.id}>
+              <td className="theory-name-cell">
+                <TheoryName theory={t} theories={theories} onRenamed={onChanged} />
+              </td>
               <td>{(t.origin ?? t.doc_type ?? 'text').toUpperCase()}</td>
               <td>
                 <span className={`status-pill status-${t.status}`}>
@@ -573,6 +598,7 @@ export function TheoriesTab({ theories, jobs, onChanged, currentTheoryId }: Theo
               <td className="theory-actions">
                 {t.status === 'building' ? (
                   <div className="action-buttons">
+                    {jobDetailsLink(t, onOpenJob)}
                     <button
                       type="button"
                       className="cancel-button"
@@ -585,6 +611,17 @@ export function TheoriesTab({ theories, jobs, onChanged, currentTheoryId }: Theo
                   </div>
                 ) : (
                   <div className="action-buttons">
+                    {jobDetailsLink(t, onOpenJob)}
+                    {t.status === 'ready' && (
+                      <button
+                        type="button"
+                        className="chat-button"
+                        onClick={() => onOpenChat(t.id)}
+                        title="Open a chat tab that asks this theory questions"
+                      >
+                        Chat
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="rebuild-button"
@@ -630,6 +667,136 @@ export function TheoriesTab({ theories, jobs, onChanged, currentTheoryId }: Theo
 }
 
 const SHOW_INACTIVE_KEY = 'chatbot.showInactiveTheories';
+
+function nameTakenMessage(existing: string): string {
+  return `A theory named "${existing}" already exists. Choose a different name.`;
+}
+
+/** The row's link to its build job's Job Details tab (none without a job). */
+function jobDetailsLink(t: TheorySummary, onOpenJob: (jobId: string) => void) {
+  if (!t.job_id) return null;
+  const jobId = t.job_id;
+  return (
+    <button
+      type="button"
+      className="job-details-link"
+      onClick={() => onOpenJob(jobId)}
+      title="Open the Job Details tab for this theory's latest build"
+    >
+      Job details
+    </button>
+  );
+}
+
+interface TheoryNameProps {
+  theory: TheorySummary;
+  theories: TheorySummary[];
+  onRenamed: () => void;
+}
+
+/**
+ * A theory's name with a pencil button that edits it in place. Enter or
+ * leaving the field saves; Escape cancels. A name another theory already has
+ * is refused (here, and by the server with a 409).
+ */
+function TheoryName({ theory, theories, onRenamed }: TheoryNameProps) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(theory.name);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // Set while Escape cancels, so the blur that follows does not save.
+  const cancelled = useRef(false);
+
+  const start = () => {
+    setDraft(theory.name);
+    setError(null);
+    cancelled.current = false;
+    setEditing(true);
+  };
+
+  const cancel = () => {
+    cancelled.current = true;
+    setEditing(false);
+    setError(null);
+  };
+
+  const save = async () => {
+    if (cancelled.current || saving) return;
+    const next = draft.trim();
+    if (next === theory.name) {
+      setEditing(false);
+      setError(null);
+      return;
+    }
+    if (!next) {
+      setError('A theory name is required.');
+      return;
+    }
+    const taken = theoryNameTaken(theories, next, theory.id);
+    if (taken) {
+      setError(nameTakenMessage(taken.name));
+      return;
+    }
+    setSaving(true);
+    try {
+      await renameTheory(theory.id, next);
+      setEditing(false);
+      setError(null);
+      onRenamed();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not rename the theory.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!editing) {
+    return (
+      <span className="theory-name">
+        <span className="theory-name-text">{theory.name}</span>
+        <button
+          type="button"
+          className="rename-button"
+          onClick={start}
+          aria-label={`Rename ${theory.name}`}
+          title="Rename this theory"
+        >
+          ✎
+        </button>
+      </span>
+    );
+  }
+  return (
+    <span className="theory-name editing">
+      <input
+        className="rename-input"
+        aria-label={`New name for ${theory.name}`}
+        value={draft}
+        autoFocus
+        disabled={saving}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          setError(null);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            save();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            cancel();
+          }
+        }}
+        onBlur={save}
+      />
+      {error && (
+        <span className="error-text rename-error" role="alert">
+          {error}
+        </span>
+      )}
+    </span>
+  );
+}
 
 /** Ready and Building theories are listed by default; the rest are opt-in. */
 function isActive(t: TheorySummary): boolean {

@@ -19,7 +19,7 @@ import { formatCost, formatDollars, formatDuration, formatSessionCost } from '..
 
 interface JobIntrospectionTabProps {
   jobs: Job[];
-  // The job this tab introspects. Each job gets its own "Job Introspection
+  // The job this tab introspects. Each job gets its own "Job Details
   // (name)" tab, opened by clicking the job's name in the Jobs tab.
   jobId: string;
 }
@@ -151,7 +151,7 @@ export function JobIntrospectionTab({ jobs, jobId }: JobIntrospectionTabProps) {
   return (
     <div className="introspection-tab">
       <div className="introspection-head">
-        <h3>Job Introspection</h3>
+        <h3>Job Details</h3>
         <span className="introspection-job-label">
           {selected ? jobLabel(selected) : jobId}
         </span>

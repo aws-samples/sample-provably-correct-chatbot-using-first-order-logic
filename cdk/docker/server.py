@@ -383,6 +383,44 @@ async def api_delete_theory(theory_id: str,
     raise HTTPException(status_code=400, detail=note or "could not delete theory")
 
 
+def _check_new_theory_name(name: str) -> None:
+    """409 when another theory has `name`; 400 when it is empty or too long."""
+    try:
+        store.check_theory_name(name)
+    except store.TheoryNameTaken as ex:
+        raise HTTPException(status_code=409, detail=str(ex)) from ex
+    except ValueError as ex:
+        raise HTTPException(status_code=400, detail=str(ex)) from ex
+
+
+@app.patch("/api/theories/{theory_id}")
+async def api_rename_theory(theory_id: str, request: Request,
+                            user: dict = Depends(require_auth)) -> dict:
+    """
+    Rename a theory: JSON body {name}. Returns {"theory": <summary>}. 404 when
+    the id is unknown, 400 for an empty or overlong name, 409 when another
+    theory already has the name.
+    """
+    if not store.ENABLED:
+        raise HTTPException(status_code=503, detail="theory store not configured")
+    try:
+        body = await request.json()
+    except ValueError as ex:
+        raise HTTPException(status_code=400, detail="body is not valid JSON") from ex
+    name = body.get("name") if isinstance(body, dict) else None
+    if not isinstance(name, str):
+        raise HTTPException(status_code=400, detail="name must be a string")
+    try:
+        summary = store.rename_theory(theory_id, name)
+    except store.TheoryNameTaken as ex:
+        raise HTTPException(status_code=409, detail=str(ex)) from ex
+    except ValueError as ex:
+        raise HTTPException(status_code=400, detail=str(ex)) from ex
+    if summary is None:
+        raise HTTPException(status_code=404, detail="theory not found")
+    return {"theory": summary}
+
+
 @app.get("/api/build-params")
 async def api_build_params(user: dict = Depends(require_auth)) -> dict:
     """
@@ -526,6 +564,10 @@ async def api_create_theory(request: Request,
         # URL is accepted but may extract poorly (the UI warns the user).
         wikipedia_url = str(body.get("wikipedia_url") or "").strip()
         if wikipedia_url:
+            if not name:
+                name = wikipedia_url
+            # Refuse a taken name before downloading the page.
+            _check_new_theory_name(name)
             try:
                 document = store.fetch_web_page_text(wikipedia_url)
             except ValueError as ex:
@@ -535,15 +577,16 @@ async def api_create_theory(request: Request,
             if not store.is_wikipedia_url(wikipedia_url):
                 print(f"server: building theory from NON-Wikipedia URL "
                       f"{wikipedia_url!r}; extraction may be poor")
-            if not name:
-                name = wikipedia_url
     if not name:
         raise HTTPException(status_code=400, detail="name is required")
     if not document.strip():
         raise HTTPException(status_code=400, detail="document is empty")
+    _check_new_theory_name(name)
     try:
         return store.create_theory(name, document, doc_type=doc_type,
                                    origin=origin, build_params=values)
+    except store.TheoryNameTaken as ex:
+        raise HTTPException(status_code=409, detail=str(ex)) from ex
     except ValueError as ex:
         # e.g. invalid FHIR JSON caught by store._validate_fhir_json: fail fast
         # with a 400 at submit time rather than a 500 or a deferred job failure.
@@ -589,7 +632,7 @@ async def api_get_job_logs(job_id: str,
 async def api_job_introspection(job_id: str,
                                 user: dict = Depends(require_auth)) -> dict:
     """
-    The build's progress for the Job Introspection tab, recorded by the
+    The build's progress for the Job Details tab, recorded by the
     builder (job_introspection.Recorder): its phases, sentences, test set,
     kiro-cli sessions and cost, and the latest verified theory. `available`
     is False for jobs with no recorded progress.

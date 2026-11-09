@@ -84,6 +84,9 @@ class FakeTable:
     def put_item(self, Item):
         self.items[Item["id"]] = dict(Item)
 
+    def scan(self):
+        return {"Items": [dict(i) for i in self.items.values()]}
+
     def get_item(self, Key):
         item = self.items.get(Key["id"])
         return {"Item": dict(item)} if item else {}
@@ -106,7 +109,6 @@ def store_env(monkeypatch):
     monkeypatch.setattr(store, "_jobs", jobs)
     monkeypatch.setattr(store, "_theories", theories)
     monkeypatch.setattr(store, "_put_text", lambda key, text: None)
-    monkeypatch.setattr(store, "_unique_theory_name", lambda n: n)
     monkeypatch.setattr(store, "_reconcile_builder_jobs", lambda items: None)
 
     def fake_dispatch(jid, tid, subject_id, name, doc_type, src_key, params_json=None):

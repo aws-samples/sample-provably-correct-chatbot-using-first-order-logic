@@ -67,7 +67,7 @@ JOBS_TABLE = os.environ.get("JOBS_TABLE", "")
 # endpoint falls back to the job's stored log_tail status line.
 LOG_GROUP = os.environ.get("SERVICE_LOG_GROUP", "")
 # The builder tasks' log group and awslogs stream prefix (set on the WEB
-# task). The Job Introspection tab reads a build's log from its builder stream.
+# task). The Job Details tab reads a build's log from its builder stream.
 BUILDER_LOG_GROUP = os.environ.get("BUILDER_LOG_GROUP", "")
 BUILDER_LOG_STREAM_PREFIX = os.environ.get("BUILDER_LOG_STREAM_PREFIX", "builder")
 
@@ -259,47 +259,62 @@ def _get_text(key: str) -> str:
 
 
 # --- Theory CRUD ----------------------------------------------------------
-def _unique_theory_name(name: str) -> str:
+MAX_THEORY_NAME_LENGTH = 200
+
+
+class TheoryNameTaken(ValueError):
+    """The requested theory name is already used by another theory."""
+
+
+def check_theory_name(name: str, exclude_id: Optional[str] = None) -> str:
     """
-    Return `name` made unique against the names of all EXISTING theories by
-    appending "-1", "-2", ... when needed.
+    Return `name` stripped, or raise when it cannot be a theory's name.
 
-    So building a second theory called "Photosynthesis" yields
-    "Photosynthesis-1", a third "Photosynthesis-2", and so on. This lets two
-    Ready theories share the same source document (e.g. an original + a rebuild)
-    while staying distinguishable in the chatbot's theory picker.
-
-    A trailing "-N" suffix on the incoming name is stripped first to recover the
-    true base, so rebuilding "Photosynthesis-1" yields "Photosynthesis-2" (NOT
-    "Photosynthesis-1-1"). The next suffix is chosen as one past the highest
-    "-N" already in use for that base, so the counter keeps climbing cleanly
-    even when earlier numbers were deleted.
-
-    The base name itself is used unchanged when it is still free. Matching is on
-    the exact stored `name` string. Best-effort: if listing fails the original
-    name is returned rather than blocking a build.
+    Theory names are unique, compared case-insensitively after trimming, so
+    every chat tab and theory row is unambiguous. `exclude_id` skips one theory
+    (the one being renamed). Raises ValueError for an empty or overlong name
+    and TheoryNameTaken (a ValueError) when another theory already has it.
     """
-    raw = (name or "").strip() or "Untitled theory"
-    # Strip a trailing "-N" so a rebuilt "X-1" counts off base "X", not "X-1".
-    m = re.match(r"^(.*?)-(\d+)$", raw)
-    base = m.group(1) if m else raw
-    try:
-        existing = {t.get("name") for t in list_theories()}
-    except Exception:  # pylint: disable=broad-except
-        return raw
-    if base not in existing:
-        return base
-    # Highest "-N" already taken for this base (0 if only the bare base exists).
-    highest = 0
-    suffix_re = re.compile(r"^" + re.escape(base) + r"-(\d+)$")
-    for other in existing:
-        sm = suffix_re.match(other or "")
-        if sm:
-            highest = max(highest, int(sm.group(1)))
-    n = highest + 1
-    while f"{base}-{n}" in existing:
-        n += 1
-    return f"{base}-{n}"
+    clean = (name or "").strip()
+    if not clean:
+        raise ValueError("A theory name is required.")
+    if len(clean) > MAX_THEORY_NAME_LENGTH:
+        raise ValueError(
+            f"A theory name can be at most {MAX_THEORY_NAME_LENGTH} characters.")
+    if ENABLED:
+        wanted = clean.casefold()
+        for item in _theories.scan().get("Items", []):
+            if item.get("id") == exclude_id:
+                continue
+            other = str(item.get("name") or "")
+            if other.strip().casefold() == wanted:
+                raise TheoryNameTaken(
+                    f'A theory named "{other}" already exists. '
+                    "Choose a different name.")
+    return clean
+
+
+def rename_theory(theory_id: str, name: str) -> Optional[dict]:
+    """
+    Rename a theory, and the theory name recorded on its jobs. Returns the
+    theory's summary, or None when the id is unknown. Raises like
+    check_theory_name for an empty, overlong or taken name.
+    """
+    item = _get_theory_item(theory_id)
+    if not item:
+        return None
+    clean = check_theory_name(name, exclude_id=theory_id)
+    _update_theory(theory_id, name=clean)
+    for job in _jobs.scan().get("Items", []):
+        if job.get("theory_id") == theory_id and job.get("theory_name") != clean:
+            _jobs.update_item(
+                Key={"id": job["id"]},
+                UpdateExpression="SET #n = :n",
+                ExpressionAttributeNames={"#n": "theory_name"},
+                ExpressionAttributeValues={":n": clean},
+            )
+    item["name"] = clean
+    return _theory_summary(item)
 
 
 def list_theories() -> list[dict]:
@@ -600,11 +615,10 @@ def rebuild_theory(theory_id: str, build_params: Optional[dict] = None) -> dict:
     IN PLACE: the same theory record (same id and name) is reset to "building"
     and a fresh job is dispatched that writes its result back to that record.
 
-    Rebuilding "Foo" rebuilds "Foo" -- it does NOT create a new "Foo-1"/"Foo-2".
     This goes through create_theory (the single, well-tested dispatch path, so a
     rebuild picks up every pipeline fix an original build gets) with
     rebuild_of=<id>, which tells it to reuse the existing record instead of
-    uniquifying the name and creating a new row.
+    creating a new row.
 
     Carries over the original name, subject_id, resolved doc_type, and origin.
     Reads the source from source_s3_key.
@@ -634,10 +648,8 @@ def rebuild_theory(theory_id: str, build_params: Optional[dict] = None) -> dict:
         # FHIR bundle would still land on fhir anyway).
         doc_type=item.get("doc_type") or "auto",
         origin=item.get("origin") or None,
-        # Rebuild IN PLACE: reuse this same theory record (same id/name) rather
-        # than creating a new suffixed theory. Rebuilding "Foo" rebuilds "Foo",
-        # not "Foo-1". The existing row is reset to building and the result is
-        # written back to it.
+        # Rebuild IN PLACE: reuse this same theory record (same id/name). The
+        # existing row is reset to building and the result is written back.
         rebuild_of=theory_id,
         build_params=build_params,
     )
@@ -1383,8 +1395,10 @@ def create_theory(name: str, source_text: str, doc_type: str = "auto",
     defaults. They are stored on the job and handed to the builder.
 
     Raises ValueError (HTTP 400 via api_create_theory) for a FHIR document that
-    will not parse or an out-of-range build parameter, before any theory/job
-    record is created -- see _validate_fhir_json / build_params.validate.
+    will not parse or an out-of-range build parameter, and TheoryNameTaken
+    (HTTP 409) when another theory has the name, before any theory/job record
+    is created -- see _validate_fhir_json / build_params.validate /
+    check_theory_name.
     """
     if not ENABLED:
         raise RuntimeError("theory store is not configured")
@@ -1399,11 +1413,10 @@ def create_theory(name: str, source_text: str, doc_type: str = "auto",
 
     if rebuild_of:
         # In-place rebuild: reuse the EXISTING theory record (same id, name,
-        # subject_id, and stored source) rather than creating a new suffixed
-        # theory. Rebuilding "Foo" rebuilds "Foo" -- it does NOT spawn "Foo-1"/
-        # "Foo-2". The existing row is flipped back to "building" and a fresh
-        # job is pointed at the same theory_id; the builder writes its result
-        # back to that same record. _unique_theory_name is deliberately skipped.
+        # subject_id, and stored source) rather than creating a new theory.
+        # The existing row is flipped back to "building" and a fresh job is
+        # pointed at the same theory_id; the builder writes its result back to
+        # that same record. Its name is kept, so no uniqueness check is needed.
         existing = _get_theory_item(rebuild_of)
         if not existing:
             raise RuntimeError(f"cannot rebuild unknown theory {rebuild_of!r}")
@@ -1432,13 +1445,9 @@ def create_theory(name: str, source_text: str, doc_type: str = "auto",
             "build_params_json": params_json,
         })
     else:
-        # Make the display name unique ("Photosynthesis" -> "Photosynthesis-1"
-        # -> "-2" ...) so two theories built from DIFFERENT create calls (two
-        # distinct source submissions) stay distinguishable in the picker. A
-        # rebuild (rebuild_of set) does NOT come through here -- it reuses the
-        # existing record above. Done before the name is baked into the
-        # theory/job records and the subject_id/log messages.
-        name = _unique_theory_name(name)
+        # Theory names are unique: refuse a name another theory already has
+        # (TheoryNameTaken, HTTP 409) so the user picks a different one.
+        name = check_theory_name(name)
 
         tid = str(uuid.uuid4())
         # In-process subject id derived from the name (sanitized, unique-suffixed).
@@ -1804,7 +1813,7 @@ def run_job(job_id, theory_id, subject_id, name, source_text, doc_type,
 
     # The formalizer reports its progress (phases and kiro-cli sessions) as
     # events: they drive the job's progress pill here and the Job
-    # Introspection tab through the recorder (job_introspection.py). Both
+    # Details tab through the recorder (job_introspection.py). Both
     # are best-effort; report_progress swallows their errors.
     recorder = None
     if ENABLED:
@@ -1833,7 +1842,7 @@ def run_job(job_id, theory_id, subject_id, name, source_text, doc_type,
         raise RuntimeError(
             f"no verified theory: the best kiro-cli session did not reach "
             f"{result['n_required']} correct answers out of {result['num_qs']} "
-            "test questions (see Job Introspection)")
+            "test questions (see Job Details)")
 
     # The theory is built; what remains (suggested questions, storing the
     # theory) can take a while, so say so.

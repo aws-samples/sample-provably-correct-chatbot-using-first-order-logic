@@ -85,7 +85,7 @@ The chatbot is an expert in one document. It has two main components:
 
     2.3.	If #2.2 is satisfiable (there is a provably correct answer to the question) then an LLM translates the theorem prover’s answer back into natural language. If #2.2 is not satisfiable then the chatbot answers “I don’t know”.
 
-The web app lets you add documents, watch each build in the **Job Introspection** tab, and chat with any theory that is ready. For how each kind of source document (prose, an HL7 FHIR bundle, or an MDM file) is ingested, see [Appendix F](#appendix-f-ingestion-pipeline--adding-a-new-theory).
+The web app lets you add documents, watch each build in its **Job Details** tab, and chat with any theory that is ready in a **Chat** tab of its own. For how each kind of source document (prose, an HL7 FHIR bundle, or an MDM file) is ingested, see [Appendix F](#appendix-f-ingestion-pipeline--adding-a-new-theory).
 
 ## System architecture
 
@@ -149,7 +149,7 @@ flowchart TB
 
 **Web task.** One FastAPI process serves the SPA and the API from the same origin. The answer path turns a question into SMT-LIB (①), asks **cvc5** whether it is satisfiable against the selected theory (②), and if so turns cvc5's model back into prose (③). An unsatisfiable result returns the literal *"I don't know."* The chatbot serves only theories built in this deployment; until one is ready, the composer is disabled.
 
-**Builder task.** Adding a theory launches a Fargate task of its own (`cdk/docker/build_task.py`), so a build never competes with the web task and survives a redeploy of the web service. It ingests the document, generates the test set, and runs one kiro-cli session over all the sentences. The harness re-verifies the agent's theory independently and resumes the same session with its report until the theory meets the target or the budget runs out ([Appendix C](#appendix-c-functional-architecture-of-the-formalizer)). Its progress (phases, each session's cost and verified count, the latest verified theory, the test set) is written to S3 and shown in the **Job Introspection** tab. **Kill** stops the builder task.
+**Builder task.** Adding a theory launches a Fargate task of its own (`cdk/docker/build_task.py`), so a build never competes with the web task and survives a redeploy of the web service. It ingests the document, generates the test set, and runs one kiro-cli session over all the sentences. The harness re-verifies the agent's theory independently and resumes the same session with its report until the theory meets the target or the budget runs out ([Appendix C](#appendix-c-functional-architecture-of-the-formalizer)). Its progress (phases, each session's cost and verified count, the latest verified theory, the test set) is written to S3 and shown in the **Job Details** tab. **Kill** stops the builder task.
 
 **Edge and auth.** CloudFront terminates TLS, caches the content-hashed SPA assets and forwards everything else uncached to the ALB. The app is private: every request needs a Cognito session cookie, and an unauthenticated viewer is redirected to the Hosted UI. Tokens are exchanged server-side (confidential client), so the browser only holds the app's own signed cookie.
 
@@ -199,7 +199,7 @@ The CDK app in [`cdk/`](cdk/) deploys everything as one stack, `ProvablyCorrectC
      --user-attributes Name=email,Value=you@example.com Name=email_verified,Value=true
    ```
 
-4. Open the `PublicUrl` output, sign in, and add a theory in the **Theories** tab (paste text, upload a file, give a Wikipedia URL, or pick a sample FHIR patient). The **Build parameters** dialog sets the test-set size, the required correct ratio and the kiro-cli budget. Follow the build in **Jobs** → its name opens **Job Introspection**. When the theory is ready, ask it questions in the **Chatbot** tab.
+4. Open the `PublicUrl` output, sign in, and add a theory in the **Theories** tab (paste text, upload a file, give a Wikipedia URL, or pick a sample FHIR patient). The **Build parameters** dialog sets the test-set size, the required correct ratio and the kiro-cli budget. Theory names are unique; a name that is taken must be changed before the build starts, and the ✎ next to a theory's name renames it. Follow the build through the theory's **Job details** link (or its name in **Jobs**), which opens a **Job Details** tab. When the theory is ready, its **Chat** button opens a **Chat (<name>)** tab for asking it questions. A fresh install has no chat tabs.
 
 To deploy from CodeBuild instead of a workstation, point a project of its own (`aws/codebuild/standard:7.0`, privileged mode) at this repository with the buildspec [`cdk/buildspec.deploy.yml`](cdk/buildspec.deploy.yml). Its service role needs to assume the CDK bootstrap roles.
 
@@ -209,21 +209,24 @@ To deploy from CodeBuild instead of a workstation, point a project of its own (`
 
 ### Cost
 
-Always on: the web task (2 vCPU / 8 GB ARM Fargate), one NAT gateway and CloudFront. Per build: a builder task (8 vCPU / 48 GB ARM Fargate) for the duration of the build, the Bedrock calls for standalone rewrites, test-set generation and re-verification, and the kiro-cli credits of its sessions. Job Introspection shows each build's kiro-cli credits and their dollar cost (at `KIRO_DOLLARS_PER_CREDIT`, default $0.04).
+Always on: the web task (2 vCPU / 8 GB ARM Fargate), one NAT gateway and CloudFront. Per build: a builder task (8 vCPU / 48 GB ARM Fargate) for the duration of the build, the Bedrock calls for standalone rewrites, test-set generation and re-verification, and the kiro-cli credits of its sessions. Job Details shows each build's kiro-cli credits and their dollar cost (at `KIRO_DOLLARS_PER_CREDIT`, default $0.04).
 
 ## Troubleshooting
 
 **A build fails with `no verified theory: the best kiro-cli session did not reach N correct answers`.**
-The agent's sessions ran out (Sessions, default 3) or the time budget did (default 4 hours) before the harness verified enough test answers. Job Introspection shows how close each session came. Rebuild with more sessions or time, or a lower **Required correct ratio**. A large document needs more time, since one session formalizes all of it.
+The agent's sessions ran out (Sessions, default 3) or the time budget did (default 4 hours) before the harness verified enough test answers. Job Details shows how close each session came. Rebuild with more sessions or time, or a lower **Required correct ratio**. A large document needs more time, since one session formalizes all of it.
 
 **A build fails when its first kiro-cli session starts, and the build log shows `AccessDeniedException` or `ResourceNotFoundException` for `GetSecretValue`.**
 The Kiro API key secret is missing or has another name. Create `provably-correct-chatbot/kiro-api-key` in the stack's account and region, or redeploy with `-c kiroApiKeySecretName=<name>`.
 
-**Job Introspection shows a session ended with `stalled`.**
+**Job Details shows a session ended with `stalled`.**
 The session emitted nothing for the stall timeout (default 480 s), so the watchdog killed it and resumed it with a nudge. That does not use up a session. Repeated stalls usually mean the session is rewriting a very large theory in one tool call. Raise **Stall timeout (s)** if the theory is large.
 
-**The Chatbot tab says "No theory is ready yet", or `/ask` returns 409 `no theory selected`.**
-No theory has finished building. The chatbot only serves theories built in this deployment. Build one in the Theories tab.
+**A chat tab says "This theory is not ready", or `/ask` returns 409 `no theory selected`.**
+The theory is still building, or its last build failed or was cancelled. Chat tabs only answer from a ready theory built in this deployment. Wait for the build, or rebuild the theory in the Theories tab.
+
+**Adding a theory says `A theory named "X" already exists`.**
+Theory names are unique (ignoring case and surrounding spaces). Give the new theory another name, or rename the existing one with the ✎ next to its name. For a sample patient or a Wikipedia page left unnamed, the default name (the patient's name or the URL) must also be free.
 
 **Every page returns CloudFront `504 Gateway Timeout` while the ECS service is healthy.**
 CloudFront cannot reach the load balancer. Check VPC Block Public Access first (`aws ec2 describe-vpc-block-public-access-options`): in `block-ingress` mode the internet gateway drops all inbound traffic before any security group sees it. The stack exempts its public subnets (`PublicSubnetBpaExclusion1` and `2`); if those were removed, or a subnet already had an exclusion from outside the stack, recreate one with `aws ec2 create-vpc-block-public-access-exclusion --subnet-id <public subnet> --internet-gateway-exclusion-mode allow-bidirectional`.
@@ -255,7 +258,7 @@ One kiro-cli session reads every sentence, designs one vocabulary for the whole 
 
 ### FAQ4: How much does a build cost?
 
-Each build's cost is in its Job Introspection tab: kiro-cli credits and dollars per session and in total. The Bedrock calls (standalone rewrites, test-set generation and re-verification) and the builder task's Fargate time come on top; see [Cost](#cost).
+Each build's cost is in its Job Details tab: kiro-cli credits and dollars per session and in total. The Bedrock calls (standalone rewrites, test-set generation and re-verification) and the builder task's Fargate time come on top; see [Cost](#cost).
 
 ## Appendices
 

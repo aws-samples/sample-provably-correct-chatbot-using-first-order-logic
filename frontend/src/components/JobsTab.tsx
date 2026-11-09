@@ -8,7 +8,7 @@ import { LogsModal } from './LogsModal';
 
 interface JobsTabProps {
   jobs: Job[];
-  // Open (or switch to) the Job Introspection tab for this job.
+  // Open (or switch to) the Job Details tab for this job.
   onIntrospect?: (jobId: string) => void;
 }
 
@@ -84,7 +84,7 @@ export function JobsTab({ jobs, onIntrospect }: JobsTabProps) {
                   <button
                     type="button"
                     className="link-button job-introspect-link"
-                    title="Open Job Introspection for this job"
+                    title="Open Job Details for this job"
                     onClick={(e) => {
                       e.stopPropagation();
                       onIntrospect(j.id);

@@ -62,16 +62,25 @@ function mockFetch(handlers: Handlers) {
   });
 }
 
+beforeEach(() => {
+  localStorage.clear();
+});
+
 afterEach(() => {
   jest.restoreAllMocks();
 });
 
-test('renders the three tabs', async () => {
+// Start on an open chat tab for the New Zealand theory (t1).
+function withChatTab() {
+  localStorage.setItem('chatbot.chatTabs', JSON.stringify([{ id: 't1', name: 'New Zealand' }]));
+  localStorage.setItem('chatbot.activeTab', 'chat:t1');
+}
+
+test('a fresh install shows the Theories and Jobs tabs and no chat tab', async () => {
   global.fetch = mockFetch({}) as any;
   render(<App />);
-  expect(screen.getByRole('tab', { name: /Chatbot/ })).toBeInTheDocument();
-  expect(screen.getByRole('tab', { name: /Theories/ })).toBeInTheDocument();
-  expect(screen.getByRole('tab', { name: /Jobs/ })).toBeInTheDocument();
+  expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Theories', 'Jobs']);
+  expect(screen.getByRole('tab', { name: 'Theories' })).toHaveAttribute('aria-selected', 'true');
   // The old "Current theory" tab was merged into the Theories tab's
   // Artifacts column, so it no longer exists.
   expect(
@@ -79,22 +88,23 @@ test('renders the three tabs', async () => {
   ).not.toBeInTheDocument();
 });
 
-test('the chat tab lists ready theories in its selector', async () => {
+test('the Chat button opens a chat tab named after its theory', async () => {
   global.fetch = mockFetch({}) as any;
   render(<App />);
-  await waitFor(() =>
-    expect(
-      within(screen.getByRole('combobox')).getByText('New Zealand')
-    ).toBeInTheDocument()
-  );
+  await userEvent.click(await screen.findByRole('button', { name: 'Chat' }));
+  expect(screen.getByRole('tab', { name: 'Chat (New Zealand)' }))
+    .toHaveAttribute('aria-selected', 'true');
+  expect(await screen.findByText('A chatbot expert in New Zealand.')).toBeInTheDocument();
+  expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
 });
 
 test('a verified answer renders the Verified badge', async () => {
   global.fetch = mockFetch({
     ask: () => Promise.resolve({ answer: 'Wellington is the capital.' }),
   }) as any;
+  withChatTab();
   render(<App />);
-  // The composer enables once the theory list has loaded and one is selected.
+  // The composer enables once the theory list has loaded and it is ready.
   await waitFor(() => expect(screen.getByLabelText('Ask a question')).toBeEnabled());
 
   await userEvent.type(
@@ -111,8 +121,9 @@ test('an "I don\'t know" answer is marked unverifiable', async () => {
   global.fetch = mockFetch({
     ask: () => Promise.resolve({ answer: "I don't know" }),
   }) as any;
+  withChatTab();
   render(<App />);
-  // The composer enables once the theory list has loaded and one is selected.
+  // The composer enables once the theory list has loaded and it is ready.
   await waitFor(() => expect(screen.getByLabelText('Ask a question')).toBeEnabled());
 
   await userEvent.type(screen.getByLabelText('Ask a question'), 'Unknowable?');
@@ -132,8 +143,9 @@ test('the lucky button opens a picker and asking the chosen question works', asy
       }),
     ask: () => Promise.resolve({ answer: 'Wellington is the capital.' }),
   }) as any;
+  withChatTab();
   render(<App />);
-  // The composer enables once the theory list has loaded and one is selected.
+  // The composer enables once the theory list has loaded and it is ready.
   await waitFor(() => expect(screen.getByLabelText('Ask a question')).toBeEnabled());
 
   // Open the picker.
@@ -165,7 +177,6 @@ test('the Theories tab shows the add-theory form on demand', async () => {
   render(<App />);
   await userEvent.click(screen.getByRole('tab', { name: /Theories/ }));
 
-  expect(await screen.findByText('Available theories')).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: /Add theory/ }));
   expect(screen.getByPlaceholderText(/Paste the source document/)).toBeInTheDocument();
 });
@@ -177,14 +188,14 @@ test('the Jobs tab shows an empty state with no jobs', async () => {
   expect(await screen.findByText(/No jobs yet/)).toBeInTheDocument();
 });
 
-test('with no ready theories the chat tab claims no subject expertise', async () => {
+test('a chat tab whose theory is not ready claims no subject expertise', async () => {
   const fetchMock = mockFetch({
     theories: () => Promise.resolve({ theories: [{ ...READY_THEORY, status: 'building' }] }),
   });
   global.fetch = fetchMock as any;
-  localStorage.clear(); // start on the Chatbot tab, not a tab an earlier test left
+  withChatTab();
   render(<App />);
-  expect(await screen.findByText('(no ready theories)')).toBeInTheDocument();
+  expect(await screen.findByText(/This theory is not ready \(status: building\)/)).toBeInTheDocument();
   expect(screen.queryByText(/expert in/)).not.toBeInTheDocument();
   expect(document.querySelector('.theory-subject')).toBeNull();
   // Nothing asked the server to describe a subject it happens to have loaded.
@@ -192,5 +203,16 @@ test('with no ready theories the chat tab claims no subject expertise', async ()
   // There is nothing to ask yet, and the composer says where to go.
   expect(screen.getByRole('textbox', { name: 'Ask a question' })).toBeDisabled();
   expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
-  expect(screen.getByText(/Build one in the Theories tab/)).toBeInTheDocument();
+});
+
+test('a chat tab closes when its theory is deleted', async () => {
+  global.fetch = mockFetch({ theories: () => Promise.resolve({ theories: [] }) }) as any;
+  withChatTab();
+  render(<App />);
+  // Labelled from the remembered name until the theories load.
+  expect(screen.getByRole('tab', { name: 'Chat (New Zealand)' })).toBeInTheDocument();
+  await waitFor(() =>
+    expect(screen.queryByRole('tab', { name: 'Chat (New Zealand)' })).not.toBeInTheDocument()
+  );
+  expect(screen.getByRole('tab', { name: 'Theories' })).toHaveAttribute('aria-selected', 'true');
 });

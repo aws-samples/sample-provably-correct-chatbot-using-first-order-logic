@@ -1,7 +1,7 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import './App.css';
 import { TitleBar } from './components/TitleBar';
 import { ChatTab } from './components/ChatTab';
@@ -11,31 +11,34 @@ import { JobIntrospectionTab } from './components/JobIntrospectionTab';
 import { useStore } from './useStore';
 import { Job } from './types';
 
-type FixedTabKey = 'chat' | 'theories' | 'jobs';
-// A per-job introspection tab is keyed "job:<job id>".
-type TabKey = FixedTabKey | `job:${string}`;
+type FixedTabKey = 'theories' | 'jobs';
+// A per-theory chat tab is keyed "chat:<theory id>"; a per-job Job Details tab
+// "job:<job id>".
+type TabKey = FixedTabKey | `chat:${string}` | `job:${string}`;
 
 const TABS: { key: FixedTabKey; label: string }[] = [
-  { key: 'chat', label: 'Chatbot' },
   { key: 'theories', label: 'Theories' },
   { key: 'jobs', label: 'Jobs' },
 ];
 
 const ACTIVE_TAB_KEY = 'chatbot.activeTab';
+const CHAT_TABS_KEY = 'chatbot.chatTabs';
 const JOB_TABS_KEY = 'chatbot.jobTabs';
 
+const chatTabKey = (theoryId: string): TabKey => `chat:${theoryId}`;
 const jobTabKey = (jobId: string): TabKey => `job:${jobId}`;
 
-// An open per-job tab. The job's name is stored with it so a reopened page
-// labels the tab correctly before the jobs list has loaded.
-interface JobTab {
+// An open chat or Job Details tab: the theory or job id, and the name shown
+// in its label. The name is stored with it so a reopened page labels the tab
+// correctly before the theories and jobs lists have loaded.
+interface OpenTab {
   id: string;
   name: string;
 }
 
-function loadJobTabs(): JobTab[] {
+function loadTabs(storageKey: string): OpenTab[] {
   try {
-    const v = JSON.parse(localStorage.getItem(JOB_TABS_KEY) ?? '[]');
+    const v = JSON.parse(localStorage.getItem(storageKey) ?? '[]');
     return Array.isArray(v)
       ? v.filter((x) => x && typeof x.id === 'string' && typeof x.name === 'string')
       : [];
@@ -49,46 +52,71 @@ function jobName(job: Job | undefined, fallback: string): string {
 }
 
 function App() {
-  // Per-job introspection tabs, in the order they were opened (remembered).
-  const [jobTabs, setJobTabs] = useState<JobTab[]>(loadJobTabs);
-  // Remember the active tab across reloads. Validate the stored value against
-  // the known tabs so a stale/garbage entry falls back to 'chat'.
+  // Chat and Job Details tabs, each in the order they were opened. A fresh
+  // install has none; both lists are remembered across reloads.
+  const [chatTabs, setChatTabs] = useState<OpenTab[]>(() => loadTabs(CHAT_TABS_KEY));
+  const [jobTabs, setJobTabs] = useState<OpenTab[]>(() => loadTabs(JOB_TABS_KEY));
+  // Remember the active tab across reloads. A stale entry (unknown key, or a
+  // tab that has since been closed) falls back to the Theories tab.
   const [tab, setTab] = useState<TabKey>(() => {
     const saved = localStorage.getItem(ACTIVE_TAB_KEY) ?? '';
     if (TABS.some((t) => t.key === saved)) return saved as TabKey;
-    if (saved.startsWith('job:') && loadJobTabs().some((t) => t.id === saved.slice(4))) {
+    if (saved.startsWith('chat:') && loadTabs(CHAT_TABS_KEY).some((t) => t.id === saved.slice(5))) {
       return saved as TabKey;
     }
-    return 'chat';
+    if (saved.startsWith('job:') && loadTabs(JOB_TABS_KEY).some((t) => t.id === saved.slice(4))) {
+      return saved as TabKey;
+    }
+    return 'theories';
   });
   useEffect(() => {
     localStorage.setItem(ACTIVE_TAB_KEY, tab);
   }, [tab]);
   useEffect(() => {
+    localStorage.setItem(CHAT_TABS_KEY, JSON.stringify(chatTabs));
+  }, [chatTabs]);
+  useEffect(() => {
     localStorage.setItem(JOB_TABS_KEY, JSON.stringify(jobTabs));
   }, [jobTabs]);
 
-  const [selectedId, setSelectedId] = useState('');
-  const { theories, jobs, refresh } = useStore();
+  const { theories, jobs, loading, error, refresh } = useStore();
 
-  // Default the selected theory to the first ready one once theories load.
-  const readyIds = useMemo(
-    () => theories.filter((t) => t.status === 'ready').map((t) => t.id),
-    [theories]
-  );
+  // Once the theories have loaded, keep the chat tabs in step with them: a
+  // renamed theory's stored name follows the new name, and a deleted theory's
+  // tab closes.
   useEffect(() => {
-    if (!selectedId && readyIds.length > 0) setSelectedId(readyIds[0]);
-    // If the selected theory vanished, fall back to the first ready one.
-    if (selectedId && !theories.some((t) => t.id === selectedId)) {
-      setSelectedId(readyIds[0] ?? '');
+    if (loading || error) return;
+    const next = chatTabs
+      .filter((c) => theories.some((t) => t.id === c.id))
+      .map((c) => ({ ...c, name: theories.find((t) => t.id === c.id)!.name }));
+    const same =
+      next.length === chatTabs.length && next.every((c, i) => c.name === chatTabs[i].name);
+    if (same) return;
+    setChatTabs(next);
+    if (tab.startsWith('chat:') && !next.some((c) => chatTabKey(c.id) === tab)) {
+      setTab('theories');
     }
-  }, [readyIds, selectedId, theories]);
+  }, [theories, loading, error, chatTabs, tab]);
 
   const activeJobCount = jobs.filter(
     (j) => j.status === 'queued' || j.status === 'running'
   ).length;
 
-  // Open (or switch to) the introspection tab for one job.
+  // Open (or switch to) the chat tab for one theory.
+  const openChatTab = (theoryId: string) => {
+    const name = theories.find((t) => t.id === theoryId)?.name ?? theoryId.slice(0, 8);
+    setChatTabs((open) =>
+      open.some((t) => t.id === theoryId) ? open : [...open, { id: theoryId, name }]
+    );
+    setTab(chatTabKey(theoryId));
+  };
+
+  const closeChatTab = (theoryId: string) => {
+    setChatTabs((open) => open.filter((t) => t.id !== theoryId));
+    if (tab === chatTabKey(theoryId)) setTab('theories');
+  };
+
+  // Open (or switch to) the Job Details tab for one job.
   const openJobTab = (jobId: string) => {
     const name = jobName(jobs.find((j) => j.id === jobId), jobId.slice(0, 8));
     setJobTabs((open) =>
@@ -123,59 +151,81 @@ function App() {
             )}
           </button>
         ))}
-        {jobTabs.map(({ id: jobId, name }) => {
-          const key = jobTabKey(jobId);
-          const label = `Job Introspection (${jobName(jobs.find((j) => j.id === jobId), name)})`;
-          return (
-            <span
-              key={key}
-              className={tab === key ? 'tab closable-tab active' : 'tab closable-tab'}
-            >
-              <button
-                role="tab"
-                aria-selected={tab === key}
-                className="closable-tab-label"
-                onClick={() => setTab(key)}
-                title={label}
-              >
-                {label}
-              </button>
-              <button
-                type="button"
-                className="tab-close"
-                aria-label={`Close ${label}`}
-                title="Close tab"
-                onClick={() => closeJobTab(jobId)}
-              >
-                ×
-              </button>
-            </span>
-          );
-        })}
+        {chatTabs.map(({ id, name }) => (
+          <ClosableTab
+            key={chatTabKey(id)}
+            label={`Chat (${theories.find((t) => t.id === id)?.name ?? name})`}
+            active={tab === chatTabKey(id)}
+            onSelect={() => setTab(chatTabKey(id))}
+            onClose={() => closeChatTab(id)}
+          />
+        ))}
+        {jobTabs.map(({ id, name }) => (
+          <ClosableTab
+            key={jobTabKey(id)}
+            label={`Job Details (${jobName(jobs.find((j) => j.id === id), name)})`}
+            active={tab === jobTabKey(id)}
+            onSelect={() => setTab(jobTabKey(id))}
+            onClose={() => closeJobTab(id)}
+          />
+        ))}
       </nav>
 
       <main className="tab-panel" role="tabpanel">
-        {tab === 'chat' && (
-          <ChatTab
-            theories={theories}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-          />
-        )}
         {tab === 'theories' && (
           <TheoriesTab
             theories={theories}
             jobs={jobs}
             onChanged={refresh}
-            currentTheoryId={selectedId}
+            onOpenChat={openChatTab}
+            onOpenJob={openJobTab}
           />
         )}
         {tab === 'jobs' && <JobsTab jobs={jobs} onIntrospect={openJobTab} />}
+        {/* Chat tabs stay mounted while hidden so each keeps its conversation
+            when the user switches tabs. */}
+        {chatTabs.map(({ id }) => (
+          <div key={id} className="chat-tab-panel" hidden={tab !== chatTabKey(id)}>
+            <ChatTab theoryId={id} theory={theories.find((t) => t.id === id)} />
+          </div>
+        ))}
         {activeJobTab && (
           <JobIntrospectionTab key={activeJobTab} jobs={jobs} jobId={activeJobTab} />
         )}
       </main>
     </div>
+  );
+}
+
+interface ClosableTabProps {
+  label: string;
+  active: boolean;
+  onSelect: () => void;
+  onClose: () => void;
+}
+
+function ClosableTab({ label, active, onSelect, onClose }: ClosableTabProps) {
+  return (
+    <span className={active ? 'tab closable-tab active' : 'tab closable-tab'}>
+      <button
+        role="tab"
+        aria-selected={active}
+        className="closable-tab-label"
+        onClick={onSelect}
+        title={label}
+      >
+        {label}
+      </button>
+      <button
+        type="button"
+        className="tab-close"
+        aria-label={`Close ${label}`}
+        title="Close tab"
+        onClick={onClose}
+      >
+        ×
+      </button>
+    </span>
   );
 }
 

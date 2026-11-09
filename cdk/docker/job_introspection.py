@@ -3,7 +3,7 @@
 
 """
 Job introspection: record the progress of a theory build and read it back for
-the "Job Introspection" tab.
+the "Job Details" tab.
 
 A build is ONE unit of work (auto_formalizer.formalize_document): it loads
 the document's sentences, generates the test set, then runs one or more

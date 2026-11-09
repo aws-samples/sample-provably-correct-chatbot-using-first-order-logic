@@ -25,8 +25,6 @@
   --color-code-text: #1a1a1a;
   /* current-theory row highlight (Theories tab): soft accent-tinted fill with
      a matching rounded outline — good contrast against white, easy on the eye */
-  --color-current-row-bg: #e7f1ff;
-  --color-current-row-border: #4a90e2;
 }
 
 .App {
@@ -223,7 +221,20 @@
   overflow-y: auto;
 }
 
-/* --- Chat tab (selector) ----------------------------------------------- */
+/* --- Chat tabs --------------------------------------------------------- */
+/* One panel per open chat tab; inactive ones stay mounted but hidden so they
+   keep their conversation. */
+.chat-tab-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.chat-tab-panel[hidden] {
+  display: none;
+}
+
 .chat-tab {
   flex: 1;
   display: flex;
@@ -231,30 +242,9 @@
   min-height: 0;
 }
 
-.theory-select-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.chat-subject-row {
   padding: 12px 20px;
   border-bottom: 1px solid var(--color-divider);
-  flex-wrap: wrap;
-}
-
-.theory-select-row select {
-  padding: 6px 8px;
-  border: 1px solid var(--color-divider);
-  border-radius: 4px;
-}
-
-.current-theory-label {
-  margin: 0;
-  font-size: 15px;
-  color: inherit;
-}
-
-.current-theory-label strong {
-  font-weight: 600;
-  color: var(--color-accent);
 }
 
 .theory-subject {
@@ -262,7 +252,6 @@
   font-size: 14px;
 }
 
-/* --- Current theory tab ------------------------------------------------- */
 /* --- Theories tab ------------------------------------------------------- */
 .theories-tab,
 .jobs-tab {
@@ -333,28 +322,6 @@
   padding: 8px 10px;
   border-bottom: 1px solid var(--color-divider);
   font-size: 14px;
-}
-
-/* Highlight the "current" theory (the one selected in the Chatbot tab) with a
-   rounded rectangle: fill every cell in the row, round the row's outer corners
-   on the first/last cells, and draw a top/bottom accent border on all cells
-   plus left/right borders on the end cells so the outline is a continuous
-   rounded rectangle. border-collapse: separate (above) is what lets the corner
-   radius render. */
-.theories-table tr.current-theory-row td {
-  background: var(--color-current-row-bg);
-  border-top: 1px solid var(--color-current-row-border);
-  border-bottom: 1px solid var(--color-current-row-border);
-}
-.theories-table tr.current-theory-row td:first-child {
-  border-left: 1px solid var(--color-current-row-border);
-  border-top-left-radius: var(--radius);
-  border-bottom-left-radius: var(--radius);
-}
-.theories-table tr.current-theory-row td:last-child {
-  border-right: 1px solid var(--color-current-row-border);
-  border-top-right-radius: var(--radius);
-  border-bottom-right-radius: var(--radius);
 }
 
 .status-pill {
@@ -526,8 +493,60 @@
   align-items: center;
 }
 
-/* Rebuild is a constructive action, so it uses the accent color (outlined)
-   rather than the error color the Delete button uses. */
+/* The theory name with its rename pencil, and the inline rename field. */
+.theory-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.rename-button {
+  background: none;
+  border: none;
+  padding: 0 2px;
+  font-size: 14px;
+  color: var(--color-unverified-text);
+  cursor: pointer;
+}
+
+.rename-button:hover,
+.rename-button:focus-visible {
+  color: var(--color-accent);
+}
+
+.rename-input {
+  padding: 3px 6px;
+  border: 1px solid var(--color-divider);
+  border-radius: 4px;
+  font: inherit;
+  min-width: 14em;
+}
+
+.rename-error {
+  flex-basis: 100%;
+  font-size: 12px;
+}
+
+/* The link from a theory row to its build's Job Details tab. */
+.job-details-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--color-link, #3b82f6);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.job-details-link:hover {
+  text-decoration: none;
+}
+
+/* Chat and Rebuild are constructive actions, so they use the accent color
+   (outlined) rather than the error color the Delete button uses. */
+.chat-button,
 .rebuild-button {
   background: transparent;
   color: var(--color-accent);
@@ -538,6 +557,7 @@
   cursor: pointer;
 }
 
+.chat-button:hover:not(:disabled),
 .rebuild-button:hover:not(:disabled) {
   background: var(--color-accent);
   color: var(--color-accent-text);

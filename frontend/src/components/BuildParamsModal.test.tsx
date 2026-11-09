@@ -7,6 +7,8 @@ import { BuildParamsModal, validateDraft } from './BuildParamsModal';
 import { TheoriesTab } from './TheoriesTab';
 import { BuildParamSpec } from '../types';
 
+const LINKS = { onOpenChat: jest.fn(), onOpenJob: jest.fn() };
+
 const SPECS: BuildParamSpec[] = [
   { key: 'qa_window_sentences', group: 'Test set', type: 'int', label: 'Question window (sentences)',
     min: 2, max: 200, step: 1, default: 10, help: 'Window size.' },
@@ -95,7 +97,7 @@ test('Build theory opens the dialog and creates with the chosen parameters', asy
   const calls: Call[] = [];
   mockFetch(calls, { status: 200, body: { theory: {}, job: {} } });
   const onChanged = jest.fn();
-  render(<TheoriesTab theories={[]} jobs={[]} onChanged={onChanged} />);
+  render(<TheoriesTab {...LINKS} theories={[]} jobs={[]} onChanged={onChanged} />);
   fireEvent.click(screen.getByRole('button', { name: '+ Add theory' }));
   fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Tides' } });
   fireEvent.change(screen.getByPlaceholderText('Paste the source document here…'), {
@@ -112,6 +114,23 @@ test('Build theory opens the dialog and creates with the chosen parameters', asy
   expect(body.name).toBe('Tides');
   expect(body.build_params.qa_window_sentences).toBe(5);
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+test('a name the server says is taken closes the dialog and asks for another', async () => {
+  const detail = 'A theory named "Tides" already exists. Choose a different name.';
+  mockFetch([], { status: 409, body: { detail } });
+  render(<TheoriesTab {...LINKS} theories={[]} jobs={[]} onChanged={jest.fn()} />);
+  fireEvent.click(screen.getByRole('button', { name: '+ Add theory' }));
+  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Tides' } });
+  fireEvent.change(screen.getByPlaceholderText('Paste the source document here…'), {
+    target: { value: 'The moon causes tides.' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Build theory…' }));
+  await screen.findByLabelText('Question window (sentences)');
+  fireEvent.click(screen.getByRole('button', { name: 'Start build' }));
+  expect(await screen.findByText(detail)).toBeInTheDocument();
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Name')).toHaveFocus();
 });
 
 const THEORY = {
@@ -134,7 +153,7 @@ test('a rebuild starts from the most recent job\u2019s parameters', async () => 
                                kiro_model: 'm1', sentences_per_chunk: 4 }),
     job('j3', 1_700_200_000, null), // no recorded params: ignored
   ];
-  render(<TheoriesTab theories={[THEORY as any]} jobs={jobs as any} onChanged={jest.fn()} />);
+  render(<TheoriesTab {...LINKS} theories={[THEORY as any]} jobs={jobs as any} onChanged={jest.fn()} />);
   fireEvent.click(screen.getByRole('button', { name: 'Rebuild' }));
   expect(await screen.findByLabelText('Question window (sentences)')).toHaveValue(9);
   expect(screen.getByLabelText('Required correct ratio')).toHaveValue(0.7);
@@ -156,7 +175,7 @@ test('a rebuild starts from the most recent job\u2019s parameters', async () => 
 
 test('a rebuild with no recorded parameters starts from the defaults', async () => {
   mockFetch([]);
-  render(<TheoriesTab theories={[THEORY as any]} jobs={[job('j1', 1, null)] as any} onChanged={jest.fn()} />);
+  render(<TheoriesTab {...LINKS} theories={[THEORY as any]} jobs={[job('j1', 1, null)] as any} onChanged={jest.fn()} />);
   fireEvent.click(screen.getByRole('button', { name: 'Rebuild' }));
   expect(await screen.findByLabelText('Question window (sentences)')).toHaveValue(10);
   expect(screen.getByRole('button', { name: 'Reset to defaults' })).toBeInTheDocument();

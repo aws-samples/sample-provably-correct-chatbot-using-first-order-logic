@@ -33,6 +33,18 @@ export interface LuckyResponse {
   question: string;
 }
 
+// A refused request, with FastAPI's detail message and the HTTP status (e.g.
+// 409 when a theory name is already taken).
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
     credentials: 'include', // send the app session cookie
@@ -54,7 +66,10 @@ async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // not JSON; fall back to the status line
     }
-    throw new Error(detail || `Request to ${path} failed with status ${res.status}`);
+    throw new ApiError(
+      detail || `Request to ${path} failed with status ${res.status}`,
+      res.status
+    );
   }
   return (await res.json()) as T;
 }
@@ -106,6 +121,27 @@ export function deleteTheory(
   id: string
 ): Promise<{ ok?: boolean; deleted?: string; note?: string }> {
   return getJson(`/api/theories/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+// Rename a theory. Names are unique (case-insensitive): a taken name is
+// refused with an ApiError whose status is 409.
+export function renameTheory(id: string, name: string): Promise<{ theory: TheorySummary }> {
+  return getJson(`/api/theories/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+}
+
+// True when `name` matches (trimmed, case-insensitive) a theory other than
+// `exceptId`. Mirrors store.check_theory_name on the backend.
+export function theoryNameTaken(
+  theories: TheorySummary[],
+  name: string,
+  exceptId?: string
+): TheorySummary | undefined {
+  const wanted = name.trim().toLowerCase();
+  return theories.find((t) => t.id !== exceptId && t.name.trim().toLowerCase() === wanted);
 }
 
 // Rebuild an existing theory from its stored source document. Creates a FRESH
@@ -232,7 +268,7 @@ export function fetchJobLogs(id: string, limit = 2000): Promise<JobLogs> {
   return getJson(`/api/jobs/${encodeURIComponent(id)}/logs?limit=${limit}`);
 }
 
-// The progress recorded for a build (Job Introspection tab): phases,
+// The progress recorded for a build (Job Details tab): phases,
 // sessions, cost, the latest verified theory and the test set.
 export function fetchJobIntrospection(id: string): Promise<JobIntrospection> {
   return getJson(`/api/jobs/${encodeURIComponent(id)}/introspection`);

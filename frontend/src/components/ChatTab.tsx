@@ -4,49 +4,45 @@
 import React from 'react';
 import { useChat } from '../useChat';
 import { TheorySummary } from '../types';
-import { expandOntologyName } from '../ontology';
 import { Transcript } from './Transcript';
 import { Composer } from './Composer';
 
 interface ChatTabProps {
-  theories: TheorySummary[];
-  selectedId: string;
-  onSelect: (id: string) => void;
+  // The theory this tab chats with. Each "Chat (<name>)" tab is bound to one
+  // theory, opened from the Theories tab.
+  theoryId: string;
+  // That theory's summary, or undefined while the list loads or once it has
+  // been deleted.
+  theory: TheorySummary | undefined;
 }
 
 /**
- * Tab 1: the chatbot. A dropdown picks which theory to query; the chosen id is
- * passed to useChat so /ask and /lucky target that theory.
+ * A chatbot tab for one theory: /ask and /lucky target `theoryId`. Questions
+ * can be asked only while the theory is ready (not while it rebuilds).
  */
-export function ChatTab({ theories, selectedId, onSelect }: ChatTabProps) {
-  const { title, messages, isBusy, send, askLucky, fetchLuckyChoices } = useChat(selectedId);
-  const ready = theories.filter((t) => t.status === 'ready');
+export function ChatTab({ theoryId, theory }: ChatTabProps) {
+  const ready = theory?.status === 'ready';
+  const { title, messages, isBusy, send, askLucky, fetchLuckyChoices } = useChat(
+    ready ? theoryId : undefined
+  );
+
+  const hint = !theory
+    ? 'This theory no longer exists. Close this tab, or open a chat from the Theories tab.'
+    : `This theory is not ready (status: ${theory.status}). Questions can be asked once it is.`;
 
   return (
     <div className="chat-tab">
-      <div className="theory-select-row">
-        <label htmlFor="theory-select">Theory:</label>
-        <select
-          id="theory-select"
-          value={selectedId}
-          onChange={(e) => onSelect(e.target.value)}
-          disabled={isBusy || ready.length === 0}
-        >
-          {ready.length === 0 && <option value="">(no ready theories)</option>}
-          {ready.map((t) => (
-            <option key={t.id} value={t.id}>
-              {expandOntologyName(t.name)}
-            </option>
-          ))}
-        </select>
-        {title && <span className="theory-subject">{title}</span>}
-      </div>
+      {title && (
+        <div className="chat-subject-row">
+          <span className="theory-subject">{title}</span>
+        </div>
+      )}
       <div className="chat-container">
         <Transcript messages={messages} />
         <Composer
           isBusy={isBusy}
-          disabled={!selectedId}
-          disabledHint="No theory is ready yet. Build one in the Theories tab, then ask it questions here."
+          disabled={!ready}
+          disabledHint={hint}
           onSend={send}
           fetchLuckyChoices={fetchLuckyChoices}
           onPickLucky={(q) => askLucky(q)}
