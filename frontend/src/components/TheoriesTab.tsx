@@ -27,7 +27,6 @@ interface TheoriesTabProps {
   onChanged: () => void; // ask the parent to refresh theories+jobs
   onOpenChat: (theoryId: string) => void; // open the theory's "Chat (<name>)" tab
   onOpenJob: (jobId: string) => void; // open the job's "Job Details (<name>)" tab
-  onOpenSuperChat?: () => void; // open the Super Chat tab (several theories)
 }
 
 type Mode = 'paste' | 'upload' | 'sample' | 'wikipedia';
@@ -41,7 +40,7 @@ type Mode = 'paste' | 'upload' | 'sample' | 'wikipedia';
  * Theory names are unique.
  */
 export function TheoriesTab({
-  theories, jobs, onChanged, onOpenChat, onOpenJob, onOpenSuperChat,
+  theories, jobs, onChanged, onOpenChat, onOpenJob,
 }: TheoriesTabProps) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>('paste');
@@ -325,20 +324,9 @@ export function TheoriesTab({
           />
           Show failed and cancelled ({inactiveCount})
         </label>
-        <div className="theories-header-buttons">
-          {onOpenSuperChat && (
-            <button
-              type="button"
-              onClick={onOpenSuperChat}
-              title="Ask one question of several theories at once"
-            >
-              Super Chat
-            </button>
-          )}
-          <button onClick={() => setOpen((o) => !o)}>
-            {open ? 'Cancel' : '+ Add theory'}
-          </button>
-        </div>
+        <button onClick={() => setOpen((o) => !o)}>
+          {open ? 'Cancel' : '+ Add theory'}
+        </button>
       </div>
 
       {open && (

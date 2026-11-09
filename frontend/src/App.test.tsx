@@ -76,10 +76,10 @@ function withChatTab() {
   localStorage.setItem('chatbot.activeTab', 'chat:t1');
 }
 
-test('a fresh install shows the Theories and Jobs tabs and no chat tab', async () => {
+test('a fresh install shows Super Chat, Theories and Jobs and no per-theory chat tab', async () => {
   global.fetch = mockFetch({}) as any;
   render(<App />);
-  expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Theories', 'Jobs']);
+  expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Super Chat', 'Theories', 'Jobs']);
   expect(screen.getByRole('tab', { name: 'Theories' })).toHaveAttribute('aria-selected', 'true');
   // The old "Current theory" tab was merged into the Theories tab's
   // Artifacts column, so it no longer exists.
@@ -105,10 +105,10 @@ test('a verified answer renders the Verified badge', async () => {
   withChatTab();
   render(<App />);
   // The composer enables once the theory list has loaded and it is ready.
-  await waitFor(() => expect(screen.getByLabelText('Ask a question')).toBeEnabled());
+  await waitFor(() => expect(screen.getByRole('textbox', { name: 'Ask a question' })).toBeEnabled());
 
   await userEvent.type(
-    screen.getByLabelText('Ask a question'),
+    screen.getByRole('textbox', { name: 'Ask a question' }),
     'What is the capital?'
   );
   await userEvent.click(screen.getByRole('button', { name: 'Send' }));
@@ -124,9 +124,9 @@ test('an "I don\'t know" answer is marked unverifiable', async () => {
   withChatTab();
   render(<App />);
   // The composer enables once the theory list has loaded and it is ready.
-  await waitFor(() => expect(screen.getByLabelText('Ask a question')).toBeEnabled());
+  await waitFor(() => expect(screen.getByRole('textbox', { name: 'Ask a question' })).toBeEnabled());
 
-  await userEvent.type(screen.getByLabelText('Ask a question'), 'Unknowable?');
+  await userEvent.type(screen.getByRole('textbox', { name: 'Ask a question' }), 'Unknowable?');
   await userEvent.click(screen.getByRole('button', { name: 'Send' }));
 
   expect(await screen.findByText("I don't know")).toBeInTheDocument();
@@ -146,7 +146,7 @@ test('the lucky button opens a picker and asking the chosen question works', asy
   withChatTab();
   render(<App />);
   // The composer enables once the theory list has loaded and it is ready.
-  await waitFor(() => expect(screen.getByLabelText('Ask a question')).toBeEnabled());
+  await waitFor(() => expect(screen.getByRole('textbox', { name: 'Ask a question' })).toBeEnabled());
 
   // Open the picker.
   await userEvent.click(screen.getByRole('button', { name: /Feeling/ }));
@@ -197,7 +197,8 @@ test('a chat tab whose theory is not ready claims no subject expertise', async (
   render(<App />);
   expect(await screen.findByText(/This theory is not ready \(status: building\)/)).toBeInTheDocument();
   expect(screen.queryByText(/expert in/)).not.toBeInTheDocument();
-  expect(document.querySelector('.theory-subject')).toBeNull();
+  // (Scoped to the visible chat: the hidden Super Chat panel has its own line.)
+  expect(document.querySelector('.chat-tab-panel:not([hidden]) .theory-subject')).toBeNull();
   // Nothing asked the server to describe a subject it happens to have loaded.
   expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/subject'))).toBe(false);
   // There is nothing to ask yet, and the composer says where to go.
@@ -227,8 +228,8 @@ test('each question and answer flips to its logical form and back', async () => 
   }) as any;
   withChatTab();
   render(<App />);
-  await waitFor(() => expect(screen.getByLabelText('Ask a question')).toBeEnabled());
-  await userEvent.type(screen.getByLabelText('Ask a question'), 'Which party won?');
+  await waitFor(() => expect(screen.getByRole('textbox', { name: 'Ask a question' })).toBeEnabled());
+  await userEvent.type(screen.getByRole('textbox', { name: 'Ask a question' }), 'Which party won?');
   await userEvent.click(screen.getByRole('button', { name: 'Send' }));
   expect(await screen.findByText('The Democratic Party.')).toBeInTheDocument();
 
@@ -247,8 +248,8 @@ test('an answer without a logical form has no flip button', async () => {
   global.fetch = mockFetch({ ask: () => Promise.resolve({ answer: "I don't know" }) }) as any;
   withChatTab();
   render(<App />);
-  await waitFor(() => expect(screen.getByLabelText('Ask a question')).toBeEnabled());
-  await userEvent.type(screen.getByLabelText('Ask a question'), 'Unknowable?');
+  await waitFor(() => expect(screen.getByRole('textbox', { name: 'Ask a question' })).toBeEnabled());
+  await userEvent.type(screen.getByRole('textbox', { name: 'Ask a question' }), 'Unknowable?');
   await userEvent.click(screen.getByRole('button', { name: 'Send' }));
   expect(await screen.findByText("I don't know")).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Show logical form' })).not.toBeInTheDocument();

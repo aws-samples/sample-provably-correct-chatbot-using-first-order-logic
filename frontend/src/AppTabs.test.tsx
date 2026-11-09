@@ -37,7 +37,7 @@ const tabNames = () => screen.getAllByRole('tab').map((t) => t.textContent);
 test('there is no general Job Details tab', async () => {
   render(<App />);
   await screen.findByRole('button', { name: 'Cape Canaveral' });
-  expect(tabNames()).toEqual(['Theories', 'Jobs']);
+  expect(tabNames()).toEqual(['Super Chat', 'Theories', 'Jobs']);
 });
 
 test('clicking a job name opens its own tab, and again just switches to it', async () => {
@@ -52,7 +52,7 @@ test('clicking a job name opens its own tab, and again just switches to it', asy
   fireEvent.click(screen.getByRole('tab', { name: 'Jobs' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Cape Canaveral' }));
   expect(tabNames()).toEqual([
-    'Theories', 'Jobs',
+    'Super Chat', 'Theories', 'Jobs',
     'Job Details (Cape Canaveral)', 'Job Details (Hypertension)',
   ]);
   expect(screen.getByRole('tab', { name: 'Job Details (Cape Canaveral)' }))
@@ -70,7 +70,7 @@ test('the close button removes a tab, and open tabs are remembered', async () =>
   expect(screen.getByRole('tab', { name: 'Job Details (Hypertension)' }))
     .toHaveAttribute('aria-selected', 'true');
   fireEvent.click(screen.getByRole('button', { name: 'Close Job Details (Hypertension)' }));
-  expect(tabNames()).toEqual(['Theories', 'Jobs', 'Job Details (Cape Canaveral)']);
+  expect(tabNames()).toEqual(['Super Chat', 'Theories', 'Jobs', 'Job Details (Cape Canaveral)']);
   // Closing the active tab falls back to the Jobs tab.
   expect(screen.getByRole('tab', { name: 'Jobs' })).toHaveAttribute('aria-selected', 'true');
   expect(within(screen.getByRole('tablist')).queryByText(/Hypertension/)).not.toBeInTheDocument();
@@ -85,20 +85,19 @@ test('a theory row opens its Job Details tab, and chat tabs sit before job tabs'
   fireEvent.click(screen.getByRole('tab', { name: 'Theories' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Chat' }));
   expect(tabNames()).toEqual([
-    'Theories', 'Jobs', 'Chat (Cape Canaveral)', 'Job Details (Cape Canaveral)',
+    'Super Chat', 'Theories', 'Jobs', 'Chat (Cape Canaveral)', 'Job Details (Cape Canaveral)',
   ]);
   // Closing the active chat tab falls back to the Theories tab.
   fireEvent.click(screen.getByRole('button', { name: 'Close Chat (Cape Canaveral)' }));
   expect(screen.getByRole('tab', { name: 'Theories' })).toHaveAttribute('aria-selected', 'true');
 });
 
-test('the Super Chat button opens a closable Super Chat tab', async () => {
-  localStorage.setItem('chatbot.activeTab', 'theories');
+test('Super Chat is always the first tab, with no close button', async () => {
+  localStorage.clear();
   render(<App />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Super Chat' }));
+  expect(tabNames()[0]).toBe('Super Chat');
+  expect(screen.queryByRole('button', { name: 'Close Super Chat' })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('tab', { name: 'Super Chat' }));
   expect(screen.getByRole('tab', { name: 'Super Chat' })).toHaveAttribute('aria-selected', 'true');
-  expect(tabNames()).toEqual(['Theories', 'Jobs', 'Super Chat']);
-  fireEvent.click(screen.getByRole('button', { name: 'Close Super Chat' }));
-  expect(tabNames()).toEqual(['Theories', 'Jobs']);
-  expect(screen.getByRole('tab', { name: 'Theories' })).toHaveAttribute('aria-selected', 'true');
+  expect(await screen.findByRole('button', { name: /^Theories:/ })).toBeInTheDocument();
 });
