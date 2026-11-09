@@ -206,10 +206,10 @@ test('finished phases show how long they took', async () => {
   render(<JobIntrospectionTab jobs={[JOB]} jobId="job-1" />);
   const phases = await screen.findByRole('list', { name: 'Build phases' });
   expect(within(phases).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
-    'Load sentences (3 minutes, $0.34)',
-    'Generate test set (12 minutes, $1.20)',
-    'Build theory (45 minutes, $0.76)',
-    'Generating suggested questions (2 minutes, $0.08)',
+    'Loaded sentences (3 minutes, $0.34)',
+    'Generated test set (12 minutes, $1.20)',
+    'Built theory (45 minutes, $0.76)',
+    'Generated suggested questions (2 minutes, $0.08)',
     'Done',
   ]);
 });
@@ -253,9 +253,30 @@ test('generating suggested questions is the step after Build theory', async () =
   render(<JobIntrospectionTab jobs={[{ ...JOB, status: 'running' }]} jobId="job-1" />);
   const summary = await screen.findByRole('region', { name: 'Build summary' });
   const steps = within(summary).getAllByRole('listitem').map((li) => li.textContent);
-  expect(steps[2]).toMatch(/^Build theory/);
+  expect(steps[2]).toMatch(/^Built theory/);
   expect(steps[3]).toBe('Generating suggested questions');
   expect(within(summary).getByText('Generating suggested questions'))
     .toHaveAttribute('aria-current', 'step');
   expect(within(summary).getByText('running')).toBeInTheDocument();
+});
+
+test('a step reads present tense while it runs and past tense once it ends', async () => {
+  const state = { ...STATE, status: 'running' as const, phase: 'test_set' as const,
+                  finished_at: null };
+  mockFetch({ '/introspection': { ...INTROSPECTION, state, job: { ...JOB, status: 'running' } } });
+  render(<JobIntrospectionTab jobs={[{ ...JOB, status: 'running' }]} jobId="job-1" />);
+  const summary = await screen.findByRole('region', { name: 'Build summary' });
+  expect(within(summary).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+    'Loaded sentences', 'Generating test set', 'Build theory',
+    'Generate suggested questions', 'Done',
+  ]);
+});
+
+test('the step a stopped build was on keeps its plain label', async () => {
+  const state = { ...STATE, status: 'running' as const, phase: 'theory' as const,
+                  finished_at: null };
+  mockFetch({ '/introspection': { ...INTROSPECTION, state, job: { ...JOB, status: 'cancelled' } } });
+  render(<JobIntrospectionTab jobs={[{ ...JOB, status: 'cancelled' }]} jobId="job-1" />);
+  const summary = await screen.findByRole('region', { name: 'Build summary' });
+  expect(within(summary).getAllByRole('listitem')[2]).toHaveTextContent(/^Build theory$/);
 });

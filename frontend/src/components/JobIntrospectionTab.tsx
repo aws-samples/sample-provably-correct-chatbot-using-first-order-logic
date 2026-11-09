@@ -34,12 +34,17 @@ const VIEWS: { key: BuildView; label: string }[] = [
   { key: 'logs', label: 'Logs' },
 ];
 
-const PHASES: { key: BuildPhase; label: string }[] = [
-  { key: 'sentences', label: 'Load sentences' },
-  { key: 'test_set', label: 'Generate test set' },
-  { key: 'theory', label: 'Build theory' },
-  { key: 'suggested_questions', label: 'Generating suggested questions' },
-  { key: 'done', label: 'Done' },
+// Each step's label before it starts, while it runs and once it has ended.
+const PHASES: { key: BuildPhase; label: string; active: string; ended: string }[] = [
+  { key: 'sentences', label: 'Load sentences', active: 'Loading sentences',
+    ended: 'Loaded sentences' },
+  { key: 'test_set', label: 'Generate test set', active: 'Generating test set',
+    ended: 'Generated test set' },
+  { key: 'theory', label: 'Build theory', active: 'Building theory',
+    ended: 'Built theory' },
+  { key: 'suggested_questions', label: 'Generate suggested questions',
+    active: 'Generating suggested questions', ended: 'Generated suggested questions' },
+  { key: 'done', label: 'Done', active: 'Done', ended: 'Done' },
 ];
 
 const SESSION_KINDS: Record<SessionKind, string> = {
@@ -250,6 +255,10 @@ function BuildSummary({
             const last = p.key === 'done';
             const done = i < current || (state.phase === 'done' && !(last && postProcessing));
             const here = (i === current && state.phase !== 'done') || (last && postProcessing);
+            // A stopped or failed build's last step did not run to the end:
+            // it keeps its plain label.
+            const running = here && (status === 'running' || postProcessing);
+            const label = done ? p.ended : running ? p.active : p.label;
             return (
               <li
                 key={p.key}
@@ -260,7 +269,7 @@ function BuildSummary({
                   ? postProcessing
                     ? 'Post-processing'
                     : p.label
-                  : phaseLabel(p.label, state.phase_times?.[p.key], dollarsPerCredit)}
+                  : phaseLabel(label, state.phase_times?.[p.key], dollarsPerCredit)}
               </li>
             );
           })}
