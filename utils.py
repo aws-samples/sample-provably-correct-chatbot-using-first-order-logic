@@ -1221,6 +1221,15 @@ def do_inference(prompt_prefix: str,
                     delay = min(delay * 2, MAX_INFERENCE_RETRY_DELAY)
 
                 print(f"di: Caught exception during inference: {str(ex)}")
+                if "ValidationException" in str(ex):
+                    # The request itself is invalid (e.g. "Input is too long
+                    # for requested model"): the same request fails the same
+                    # way every time, so retrying only wedges the caller (a
+                    # build sat retrying one for 10 hours, 2026-11-09). Raise.
+                    print("di: Got ValidationException; not retrying")
+                    if stats is not None:
+                        stats.n_inference_exceptions += 1
+                    raise
                 if "ThrottlingException" in str(ex):
                     print("di: Throttled")
                     stats.n_throttled_inferences += 1
