@@ -1166,7 +1166,8 @@ def answer_q(theory: Optional[str],
              model_id: Optional[str] = None,
              stats: Statistics = None,
              do_use_theorem_prover: bool = True,
-             print_out_theories: bool = True) -> Optional[str]:
+             print_out_theories: bool = True,
+             logic_out: Optional[dict] = None) -> Optional[str]:
     """
     if do_use_theorem_prover is True, use the theorem prover to answer the question.
     Otherwise, use the LLM directly.
@@ -1176,6 +1177,10 @@ def answer_q(theory: Optional[str],
     we can answer it or not; this is useful for coverage testing.
 
     Return None if the theorem prover or LLM can't answer the question.
+
+    `logic_out`, when given, receives the logical forms behind the answer:
+    "question" (the SMT-LIB the question was translated into) and "answer"
+    (cvc5's model, the assignment that answers it; None unless satisfiable).
     """
     assert stats is not None
     model_id = model_id or g.MODEL_ID
@@ -1189,12 +1194,16 @@ def answer_q(theory: Optional[str],
             answer: Optional[str] = None
 
             print_multiline("aq: q_logical_form> ", q_logical_form)
+            if logic_out is not None:
+                logic_out.update(question=q_logical_form, answer=None)
             run_result = run_cvc5(theory, q_logical_form, stats,
                                     print_out_theories=print_out_theories)
             valid: Sat = run_result["validity"]
             print(f"aq: validity {valid}")
             get_model_output = run_result["get_model_output"]
             if valid == Sat.SAT and get_model_output is not None:
+                if logic_out is not None:
+                    logic_out["answer"] = get_model_output
                 if generate_actual_answer:
                     print_multiline("aq: model output> ", get_model_output)
                     ans_result = get_model_output_2_nat_lang(valid_theory=theory,

@@ -27,6 +27,10 @@ export interface SubjectResponse {
 
 export interface AskResponse {
   answer: string;
+  // The SMT-LIB the question was translated into and cvc5's model that
+  // answers it; null for "I don't know".
+  question_logic?: string | null;
+  answer_logic?: string | null;
 }
 
 export interface LuckyResponse {

@@ -38,11 +38,16 @@ def answer_q_(theory: str,
     stats = get_global_stats()
     start_time = time.time()
     try:
+        logic: dict = {}
         answer = answer_q(theory=theory,
                           question=question,
                           generate_actual_answer=True,
-                          stats=stats)
-        return answer, stats, time.time() - start_time, None
+                          stats=stats,
+                          logic_out=logic)
+        result = None if answer is None else dict(
+            answer=answer, question_logic=logic.get("question"),
+            answer_logic=logic.get("answer"))
+        return result, stats, time.time() - start_time, None
     except Exception as ex:  # pylint: disable=broad-except
         return (None, stats, time.time() - start_time,
                 f"{ex}\n{traceback.format_exc()}")
@@ -71,6 +76,21 @@ def is_unknown_answer(answer: Optional[str]) -> bool:
 def answer_q_from_chatbot(question: str, num_jobs: int = 10) -> str:
     """
     Given a question in natural language, return an answer using the chatbot.
+    See answer_q_with_logic.
+    """
+    return answer_q_with_logic(question, num_jobs)["answer"]
+
+
+def _answer_of(result: Optional[dict]) -> Optional[str]:
+    return result.get("answer") if isinstance(result, dict) else None
+
+
+def answer_q_with_logic(question: str, num_jobs: int = 10) -> dict:
+    """
+    Answer a natural-language question with the chatbot: {"answer",
+    "question_logic", "answer_logic"}. The logical forms are the SMT-LIB the
+    question was translated into and cvc5's model that answers it, from the
+    attempt whose answer is returned; both are None for "I don't know".
 
     Runs `num_jobs` attempts in parallel and returns the first proved answer.
     An attempt that ends in "I don't know" does not stop the others: the
@@ -85,24 +105,22 @@ def answer_q_from_chatbot(question: str, num_jobs: int = 10) -> str:
         pool_size=num_jobs,
         do_spawn_dupes=False,
         quit_when_get_first_result=True,
-        # starmap_with_dupes calls this with the worker's ANSWER (the first
-        # element of its (answer, stats, duration, errors) tuple), and needs
-        # it whenever quit_when_get_first_result is True. Only a proved answer
-        # stops the other attempts. (It used to index answer[0], the first
-        # character, so "I don't know" counted as success and won the race.)
-        job_successful_p=lambda answer: not is_unknown_answer(answer))
+        # starmap_with_dupes calls this with the worker's RESULT (the first
+        # element of its (result, stats, duration, errors) tuple: the answer
+        # dict, or None), and needs it whenever quit_when_get_first_result is
+        # True. Only a proved answer stops the other attempts.
+        job_successful_p=lambda result: not is_unknown_answer(_answer_of(result)))
     print(f"aqfc: chatbot answers: {results}")
     # results is a list of (answer, stats, duration, errors) tuples; keep the
     # answers that are non-None (i.e. the prover found a provable answer).
     actual_results = [
         res[0] for res in results
-        if res is not None and not is_unknown_answer(res[0])
+        if res is not None and not is_unknown_answer(_answer_of(res[0]))
     ]
     print(f"aqfc: actual results: {actual_results}")
     if len(actual_results) > 0:
         return random.choice(actual_results)
-    else:
-        return UNKNOWN_ANSWER
+    return dict(answer=UNKNOWN_ANSWER, question_logic=None, answer_logic=None)
 
 
 def im_feeling_lucky():

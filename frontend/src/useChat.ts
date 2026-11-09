@@ -81,19 +81,22 @@ export function useChat(theoryId?: string): UseChat {
   // The user bubble for `text` must already be appended.
   // Captures the theory id at call time so a late response lands in the right
   // history even if the user switches theories while it's in flight.
-  const runQuestion = useCallback(async (text: string, askTheoryId?: string) => {
+  const runQuestion = useCallback(async (text: string, askTheoryId: string | undefined,
+                                         userMsgId: number) => {
     const key = keyFor(askTheoryId);
     const pendingId = makeId();
     setIsBusy(true);
     appendTo(key, { id: pendingId, kind: 'pending', text: PENDING_TEXT });
 
     try {
-      const { answer } = await askQuestion(text, askTheoryId);
+      const { answer, question_logic, answer_logic } = await askQuestion(text, askTheoryId);
+      if (question_logic) updateIn(key, userMsgId, { logic: question_logic });
       replaceIn(key, pendingId, {
         id: pendingId,
         kind: 'bot',
         text: answer,
         verified: isVerifiedAnswer(answer),
+        ...(answer_logic ? { logic: answer_logic } : {}),
       });
     } catch {
       replaceIn(key, pendingId, {
@@ -126,17 +129,28 @@ export function useChat(theoryId?: string): UseChat {
     []
   );
 
+  const updateIn = useCallback(
+    (key: string, id: number, patch: Partial<Message>) => {
+      const prev = historiesRef.current[key] ?? [];
+      const next = prev.map((m) => (m.id === id ? { ...m, ...patch } : m));
+      historiesRef.current[key] = next;
+      if (activeKeyRef.current === key) setMessages(next);
+    },
+    []
+  );
+
   const send = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
       if (!trimmed || isBusy) return; // no blank/whitespace, no concurrent sends.
       const askTheoryId = theoryId;
+      const userMsgId = makeId();
       appendTo(keyFor(askTheoryId), {
-        id: makeId(),
+        id: userMsgId,
         kind: 'user',
         text: trimmed,
       });
-      await runQuestion(trimmed, askTheoryId);
+      await runQuestion(trimmed, askTheoryId, userMsgId);
     },
     [isBusy, runQuestion, appendTo, theoryId]
   );
@@ -176,13 +190,14 @@ export function useChat(theoryId?: string): UseChat {
     }
     // Hand off to the normal path. runQuestion resets isBusy; set the user
     // bubble first, then release the guard so send-equivalent flow proceeds.
+    const userMsgId = makeId();
     appendTo(keyFor(askTheoryId), {
-      id: makeId(),
+      id: userMsgId,
       kind: 'user',
       text: question,
     });
     setIsBusy(false);
-    await runQuestion(question, askTheoryId);
+    await runQuestion(question, askTheoryId, userMsgId);
   }, [isBusy, runQuestion, appendTo, theoryId]);
 
   return { title, messages, isBusy, send, askLucky, fetchLuckyChoices };

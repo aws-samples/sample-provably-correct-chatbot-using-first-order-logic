@@ -309,8 +309,12 @@ async def ask_question(question: Question,
     # globals, so the whole switch+answer is serialized.
     with _theory_lock:
         _require_theory(question.theory_id)
-        answer = chatbot_backend.answer_q_from_chatbot(question.text)
-    return {"answer": answer}
+        result = chatbot_backend.answer_q_with_logic(question.text)
+    # The logical forms let the chat show each question and answer as the
+    # SMT-LIB the prover worked with; both are null for "I don't know".
+    return {"answer": result["answer"],
+            "question_logic": result.get("question_logic"),
+            "answer_logic": result.get("answer_logic")}
 
 
 @app.get("/lucky")

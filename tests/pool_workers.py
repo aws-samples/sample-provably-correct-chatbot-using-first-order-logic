@@ -47,6 +47,11 @@ def answer_worker(theory, question, job_num, retries):
     from utils import Statistics
     if question == "none" or job_num != 2:
         time.sleep(0.1 if job_num == 0 else 0.3)
-        return ("I don't know" if job_num == 0 else None), Statistics(), 0.1, None
+        result = (dict(answer="I don't know", question_logic="(assert false)",
+                       answer_logic=None) if job_num == 0 else None)
+        return result, Statistics(), 0.1, None
     time.sleep(0.8)
-    return "The Democratic Party.", Statistics(), 0.8, None
+    return (dict(answer="The Democratic Party.",
+                 question_logic="(declare-const answer E)",
+                 answer_logic="(define-fun answer () E dem-party)"),
+            Statistics(), 0.8, None)

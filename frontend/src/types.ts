@@ -12,6 +12,9 @@ export interface Message {
   // Set on 'bot' messages: whether the answer is theorem-prover verified
   // (i.e. not the "I don't know" fallback). Undefined for other kinds.
   verified?: boolean;
+  // The message's logical form (the question's SMT-LIB, or the model that
+  // answers it), when the prover produced one. The bubble can flip to it.
+  logic?: string;
 }
 
 // --- Theories + jobs (tabs 2/3/4) ---------------------------------------

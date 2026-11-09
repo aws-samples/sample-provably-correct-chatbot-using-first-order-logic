@@ -216,3 +216,40 @@ test('a chat tab closes when its theory is deleted', async () => {
   );
   expect(screen.getByRole('tab', { name: 'Theories' })).toHaveAttribute('aria-selected', 'true');
 });
+
+test('each question and answer flips to its logical form and back', async () => {
+  global.fetch = mockFetch({
+    ask: () => Promise.resolve({
+      answer: 'The Democratic Party.',
+      question_logic: '(declare-const answer E)\n(assert (won answer congress))',
+      answer_logic: '(define-fun answer () E dem-party)',
+    }),
+  }) as any;
+  withChatTab();
+  render(<App />);
+  await waitFor(() => expect(screen.getByLabelText('Ask a question')).toBeEnabled());
+  await userEvent.type(screen.getByLabelText('Ask a question'), 'Which party won?');
+  await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+  expect(await screen.findByText('The Democratic Party.')).toBeInTheDocument();
+
+  const [askFlip, answerFlip] = screen.getAllByRole('button', { name: 'Show logical form' });
+  await userEvent.click(askFlip);
+  expect(screen.getByText(/\(assert \(won answer congress\)\)/)).toBeInTheDocument();
+  expect(screen.queryByText('Which party won?')).not.toBeInTheDocument();
+  await userEvent.click(answerFlip);
+  expect(screen.getByText('(define-fun answer () E dem-party)')).toBeInTheDocument();
+
+  await userEvent.click(screen.getAllByRole('button', { name: 'Show natural language' })[0]);
+  expect(screen.getByText('Which party won?')).toBeInTheDocument();
+});
+
+test('an answer without a logical form has no flip button', async () => {
+  global.fetch = mockFetch({ ask: () => Promise.resolve({ answer: "I don't know" }) }) as any;
+  withChatTab();
+  render(<App />);
+  await waitFor(() => expect(screen.getByLabelText('Ask a question')).toBeEnabled());
+  await userEvent.type(screen.getByLabelText('Ask a question'), 'Unknowable?');
+  await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+  expect(await screen.findByText("I don't know")).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Show logical form' })).not.toBeInTheDocument();
+});
