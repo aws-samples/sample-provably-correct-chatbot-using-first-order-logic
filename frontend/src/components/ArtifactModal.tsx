@@ -17,7 +17,7 @@ interface ArtifactModalProps {
 const TITLES: Record<ArtifactKind, string> = {
   source: 'Source document',
   smtlib: 'SMT-LIB theory',
-  qas: 'Verified questions and answers',
+  qas: 'Test set',
   yaml: 'Theory YAML',
 };
 

@@ -36,7 +36,7 @@ test('the Q&A artifact shows each question with its answer', async () => {
   expect(rows[1]).toHaveTextContent('Who named it? (variation)not recorded');
   expect(screen.getByText(/1 from the test set/)).toBeInTheDocument();
   expect(screen.getByRole('dialog')).toHaveAccessibleName(
-    'Verified questions and answers for Cape Canaveral'
+    'Test set for Cape Canaveral'
   );
 });
 
