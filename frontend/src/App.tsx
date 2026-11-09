@@ -8,13 +8,14 @@ import { ChatTab } from './components/ChatTab';
 import { TheoriesTab } from './components/TheoriesTab';
 import { JobsTab } from './components/JobsTab';
 import { JobIntrospectionTab } from './components/JobIntrospectionTab';
+import { SuperChatTab } from './components/SuperChatTab';
 import { useStore } from './useStore';
 import { Job } from './types';
 
 type FixedTabKey = 'theories' | 'jobs';
 // A per-theory chat tab is keyed "chat:<theory id>"; a per-job Job Details tab
 // "job:<job id>".
-type TabKey = FixedTabKey | `chat:${string}` | `job:${string}`;
+type TabKey = FixedTabKey | 'super' | `chat:${string}` | `job:${string}`;
 
 const TABS: { key: FixedTabKey; label: string }[] = [
   { key: 'theories', label: 'Theories' },
@@ -24,6 +25,7 @@ const TABS: { key: FixedTabKey; label: string }[] = [
 const ACTIVE_TAB_KEY = 'chatbot.activeTab';
 const CHAT_TABS_KEY = 'chatbot.chatTabs';
 const JOB_TABS_KEY = 'chatbot.jobTabs';
+const SUPER_CHAT_KEY = 'chatbot.superChatOpen';
 
 const chatTabKey = (theoryId: string): TabKey => `chat:${theoryId}`;
 const jobTabKey = (jobId: string): TabKey => `job:${jobId}`;
@@ -56,11 +58,17 @@ function App() {
   // install has none; both lists are remembered across reloads.
   const [chatTabs, setChatTabs] = useState<OpenTab[]>(() => loadTabs(CHAT_TABS_KEY));
   const [jobTabs, setJobTabs] = useState<OpenTab[]>(() => loadTabs(JOB_TABS_KEY));
+  // The Super Chat tab (one question to several theories), opened from the
+  // Theories tab and closable like the others.
+  const [superOpen, setSuperOpen] = useState<boolean>(
+    () => localStorage.getItem(SUPER_CHAT_KEY) === '1'
+  );
   // Remember the active tab across reloads. A stale entry (unknown key, or a
   // tab that has since been closed) falls back to the Theories tab.
   const [tab, setTab] = useState<TabKey>(() => {
     const saved = localStorage.getItem(ACTIVE_TAB_KEY) ?? '';
     if (TABS.some((t) => t.key === saved)) return saved as TabKey;
+    if (saved === 'super' && localStorage.getItem(SUPER_CHAT_KEY) === '1') return 'super';
     if (saved.startsWith('chat:') && loadTabs(CHAT_TABS_KEY).some((t) => t.id === saved.slice(5))) {
       return saved as TabKey;
     }
@@ -78,6 +86,9 @@ function App() {
   useEffect(() => {
     localStorage.setItem(JOB_TABS_KEY, JSON.stringify(jobTabs));
   }, [jobTabs]);
+  useEffect(() => {
+    localStorage.setItem(SUPER_CHAT_KEY, superOpen ? '1' : '0');
+  }, [superOpen]);
 
   const { theories, jobs, loading, error, refresh } = useStore();
 
@@ -116,6 +127,16 @@ function App() {
     if (tab === chatTabKey(theoryId)) setTab('theories');
   };
 
+  const openSuperChat = () => {
+    setSuperOpen(true);
+    setTab('super');
+  };
+
+  const closeSuperChat = () => {
+    setSuperOpen(false);
+    if (tab === 'super') setTab('theories');
+  };
+
   // Open (or switch to) the Job Details tab for one job.
   const openJobTab = (jobId: string) => {
     const name = jobName(jobs.find((j) => j.id === jobId), jobId.slice(0, 8));
@@ -151,6 +172,14 @@ function App() {
             )}
           </button>
         ))}
+        {superOpen && (
+          <ClosableTab
+            label="Super Chat"
+            active={tab === 'super'}
+            onSelect={() => setTab('super')}
+            onClose={closeSuperChat}
+          />
+        )}
         {chatTabs.map(({ id, name }) => (
           <ClosableTab
             key={chatTabKey(id)}
@@ -179,11 +208,17 @@ function App() {
             onChanged={refresh}
             onOpenChat={openChatTab}
             onOpenJob={openJobTab}
+            onOpenSuperChat={openSuperChat}
           />
         )}
         {tab === 'jobs' && <JobsTab jobs={jobs} onIntrospect={openJobTab} />}
         {/* Chat tabs stay mounted while hidden so each keeps its conversation
             when the user switches tabs. */}
+        {superOpen && (
+          <div className="chat-tab-panel" hidden={tab !== 'super'}>
+            <SuperChatTab theories={theories} />
+          </div>
+        )}
         {chatTabs.map(({ id }) => (
           <div key={id} className="chat-tab-panel" hidden={tab !== chatTabKey(id)}>
             <ChatTab theoryId={id} theory={theories.find((t) => t.id === id)} />

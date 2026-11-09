@@ -91,3 +91,14 @@ test('a theory row opens its Job Details tab, and chat tabs sit before job tabs'
   fireEvent.click(screen.getByRole('button', { name: 'Close Chat (Cape Canaveral)' }));
   expect(screen.getByRole('tab', { name: 'Theories' })).toHaveAttribute('aria-selected', 'true');
 });
+
+test('the Super Chat button opens a closable Super Chat tab', async () => {
+  localStorage.setItem('chatbot.activeTab', 'theories');
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Super Chat' }));
+  expect(screen.getByRole('tab', { name: 'Super Chat' })).toHaveAttribute('aria-selected', 'true');
+  expect(tabNames()).toEqual(['Theories', 'Jobs', 'Super Chat']);
+  fireEvent.click(screen.getByRole('button', { name: 'Close Super Chat' }));
+  expect(tabNames()).toEqual(['Theories', 'Jobs']);
+  expect(screen.getByRole('tab', { name: 'Theories' })).toHaveAttribute('aria-selected', 'true');
+});

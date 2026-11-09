@@ -63,3 +63,11 @@ def test_answer_q_reports_the_logical_forms(monkeypatch):
     logic = {}
     assert af.answer_q("(theory)", "Which party won?", stats=Statistics(), logic_out=logic) is None
     assert logic == {"question": "(declare-const answer E)", "answer": None}
+
+
+def test_a_given_theory_is_answered_instead_of_the_loaded_one(monkeypatch):
+    g.p = Params(subject_ids=["t"])
+    monkeypatch.setattr(cb, "answer_q_", pw.echo_theory_worker)
+    monkeypatch.setattr(cb, "THEORY", "(loaded)")
+    assert cb.answer_q_with_logic("?", num_jobs=2, theory="(other)")["answer"] == "from (other)"
+    assert cb.answer_q_with_logic("?", num_jobs=2)["answer"] == "from (loaded)"

@@ -55,3 +55,10 @@ def answer_worker(theory, question, job_num, retries):
                  question_logic="(declare-const answer E)",
                  answer_logic="(define-fun answer () E dem-party)"),
             Statistics(), 0.8, None)
+
+
+def echo_theory_worker(theory, question, job_num, retries):
+    """A chatbot attempt that answers with the theory it was given."""
+    from utils import Statistics
+    return (dict(answer=f"from {theory}", question_logic=None, answer_logic=None),
+            Statistics(), 0.0, None)

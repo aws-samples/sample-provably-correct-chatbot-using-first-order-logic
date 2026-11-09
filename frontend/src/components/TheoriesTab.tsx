@@ -27,6 +27,7 @@ interface TheoriesTabProps {
   onChanged: () => void; // ask the parent to refresh theories+jobs
   onOpenChat: (theoryId: string) => void; // open the theory's "Chat (<name>)" tab
   onOpenJob: (jobId: string) => void; // open the job's "Job Details (<name>)" tab
+  onOpenSuperChat?: () => void; // open the Super Chat tab (several theories)
 }
 
 type Mode = 'paste' | 'upload' | 'sample' | 'wikipedia';
@@ -39,7 +40,9 @@ type Mode = 'paste' | 'upload' | 'sample' | 'wikipedia';
  * creates a build job (visible in the Jobs tab) and a "building" theory here.
  * Theory names are unique.
  */
-export function TheoriesTab({ theories, jobs, onChanged, onOpenChat, onOpenJob }: TheoriesTabProps) {
+export function TheoriesTab({
+  theories, jobs, onChanged, onOpenChat, onOpenJob, onOpenSuperChat,
+}: TheoriesTabProps) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>('paste');
   const [docType, setDocType] = useState<DocType>('auto');
@@ -322,9 +325,20 @@ export function TheoriesTab({ theories, jobs, onChanged, onOpenChat, onOpenJob }
           />
           Show failed and cancelled ({inactiveCount})
         </label>
-        <button onClick={() => setOpen((o) => !o)}>
-          {open ? 'Cancel' : '+ Add theory'}
-        </button>
+        <div className="theories-header-buttons">
+          {onOpenSuperChat && (
+            <button
+              type="button"
+              onClick={onOpenSuperChat}
+              title="Ask one question of several theories at once"
+            >
+              Super Chat
+            </button>
+          )}
+          <button onClick={() => setOpen((o) => !o)}>
+            {open ? 'Cancel' : '+ Add theory'}
+          </button>
+        </div>
       </div>
 
       {open && (

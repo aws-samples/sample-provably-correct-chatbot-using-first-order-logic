@@ -91,3 +91,47 @@ def test_chatbot_endpoints_need_a_theory(server, monkeypatch):
         with pytest.raises(HTTPException) as err:
             asyncio.run(call)
         assert err.value.status_code == 409
+
+
+# --- Super Chat (/ask-multi) ----------------------------------------------------
+def _detail(tid, name, theory, status="ready"):
+    raw = yaml.safe_dump({"theory": theory, "sentences": ["s."]}, sort_keys=False)
+    return {"id": tid, "name": name, "status": status, "subject_id": tid,
+            "computed_theory_yaml": raw, "computed_theory": theory}
+
+
+def test_ask_multi_answers_each_theory_against_its_own_theory(server, monkeypatch):
+    details = {"a": _detail("a", "Elections", "(thy-a)"),
+               "b": _detail("b", "Hypertension", "(thy-b)")}
+    monkeypatch.setattr(server.store, "get_theory", details.get)
+    seen = []
+
+    def fake_answer(text, num_jobs=10, theory=None):
+        seen.append((theory, num_jobs))
+        if theory == "(thy-a)":
+            return dict(answer="The Democrats.", question_logic="(q-a)", answer_logic="(m-a)")
+        return dict(answer="I don't know", question_logic=None, answer_logic=None)
+
+    monkeypatch.setattr(server.chatbot_backend, "answer_q_with_logic", fake_answer)
+    loaded_before = server.chatbot_backend.THEORY
+    out = server.ask_multiple_theories(
+        server.MultiQuestion(text="Who won?", theory_ids=["a", "b", "a"]), user={})
+    assert out["answers"] == [
+        dict(theory_id="a", theory_name="Elections", answer="The Democrats.",
+             verified=True, question_logic="(q-a)", answer_logic="(m-a)"),
+        dict(theory_id="b", theory_name="Hypertension", answer="I don't know",
+             verified=False, question_logic=None, answer_logic=None)]
+    # The attempts are shared between the theories; /ask's theory is untouched.
+    assert sorted(seen) == [("(thy-a)", 5), ("(thy-b)", 5)]
+    assert server.chatbot_backend.THEORY == loaded_before
+
+
+def test_ask_multi_refuses_no_theories_and_unready_ones(server, monkeypatch):
+    monkeypatch.setattr(server.store, "get_theory",
+                        {"c": _detail("c", "Tides", "(t)", status="building")}.get)
+    with pytest.raises(server.HTTPException) as ex:
+        server.ask_multiple_theories(server.MultiQuestion(text="?", theory_ids=[]), user={})
+    assert ex.value.status_code == 400
+    with pytest.raises(server.HTTPException) as ex:
+        server.ask_multiple_theories(server.MultiQuestion(text="?", theory_ids=["c"]), user={})
+    assert ex.value.status_code == 409 and "Tides" in ex.value.detail

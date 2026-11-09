@@ -15,6 +15,20 @@ export interface Message {
   // The message's logical form (the question's SMT-LIB, or the model that
   // answers it), when the prover produced one. The bubble can flip to it.
   logic?: string;
+  // Super Chat: the proved answers, one per theory that had one, and the
+  // theories that did not. Set on 'bot' messages only.
+  answers?: TheoryAnswer[];
+  unanswered?: string[];
+}
+
+// One theory's proved answer in a Super Chat reply.
+export interface TheoryAnswer {
+  theoryId: string;
+  theoryName: string;
+  text: string;
+  // The question's SMT-LIB in this theory, and the model that answers it.
+  questionLogic?: string;
+  answerLogic?: string;
 }
 
 // --- Theories + jobs (tabs 2/3/4) ---------------------------------------

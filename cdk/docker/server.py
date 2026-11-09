@@ -13,6 +13,7 @@ import os
 import html
 import json
 import threading
+from concurrent.futures import ThreadPoolExecutor
 
 import yaml
 from fastapi import FastAPI, Request, Depends, HTTPException
@@ -58,6 +59,18 @@ app.add_middleware(
 class Question(BaseModel):
     text: str
     theory_id: str = ""  # empty => use the currently loaded theory
+
+
+class MultiQuestion(BaseModel):
+    text: str
+    theory_ids: list[str]
+
+
+# Super Chat: at most this many theories per question, and this many prover
+# attempts in all, shared between them (at least two per theory), so a
+# question to several theories costs the web task about what one does.
+MAX_SUPER_CHAT_THEORIES = 5
+SUPER_CHAT_ATTEMPTS = 10
 
 
 def require_auth(request: Request) -> dict:
@@ -315,6 +328,62 @@ async def ask_question(question: Question,
     return {"answer": result["answer"],
             "question_logic": result.get("question_logic"),
             "answer_logic": result.get("answer_logic")}
+
+
+def _ready_theory(theory_id: str) -> tuple:
+    """(name, SMT-LIB theory) of a ready theory; 404/409 otherwise."""
+    detail = store.get_theory(theory_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail=f"theory {theory_id} not found")
+    name = detail.get("name") or theory_id
+    if detail.get("status") != "ready":
+        raise HTTPException(status_code=409,
+                            detail=f'theory "{name}" is {detail.get("status")}, not ready')
+    text = _stored_theory_yaml(detail)
+    theory = None
+    if text:
+        result = _parse_theory_result(text, source=f"theory:{theory_id}")
+        theory = result.get("theory") or result.get("valid_theory")
+    if not theory:
+        raise HTTPException(status_code=409,
+                            detail=f'theory "{name}" has no computed artifact')
+    return name, theory
+
+
+@app.post("/ask-multi")
+def ask_multiple_theories(question: MultiQuestion,
+                          user: dict = Depends(require_auth)) -> dict:
+    """
+    Super Chat: ask one question of several theories at once. Returns
+    {"answers": [{theory_id, theory_name, answer, verified, question_logic,
+    answer_logic}]}, one per theory in the order given. `verified` is False
+    for "I don't know". The theories are answered in parallel, against their
+    own SMT-LIB passed to the prover workers, so this does not touch the
+    theory loaded for /ask.
+    """
+    ids = list(dict.fromkeys(t for t in question.theory_ids if t))
+    if not ids:
+        raise HTTPException(status_code=400, detail="choose at least one theory")
+    if len(ids) > MAX_SUPER_CHAT_THEORIES:
+        raise HTTPException(status_code=400,
+                            detail=f"choose at most {MAX_SUPER_CHAT_THEORIES} theories")
+    theories = [(tid, *_ready_theory(tid)) for tid in ids]
+    if getattr(g, "p", None) is None:
+        g.p = Params(subject_ids=ids)  # the prover workers read g.p
+    attempts = max(2, SUPER_CHAT_ATTEMPTS // len(theories))
+
+    def one(item):
+        tid, name, theory = item
+        result = chatbot_backend.answer_q_with_logic(
+            question.text, num_jobs=attempts, theory=theory)
+        answer = result["answer"]
+        return dict(theory_id=tid, theory_name=name, answer=answer,
+                    verified=not chatbot_backend.is_unknown_answer(answer),
+                    question_logic=result.get("question_logic"),
+                    answer_logic=result.get("answer_logic"))
+
+    with ThreadPoolExecutor(max_workers=len(theories)) as pool:
+        return {"answers": list(pool.map(one, theories))}
 
 
 @app.get("/lucky")

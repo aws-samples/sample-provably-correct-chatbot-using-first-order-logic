@@ -85,7 +85,8 @@ def _answer_of(result: Optional[dict]) -> Optional[str]:
     return result.get("answer") if isinstance(result, dict) else None
 
 
-def answer_q_with_logic(question: str, num_jobs: int = 10) -> dict:
+def answer_q_with_logic(question: str, num_jobs: int = 10,
+                        theory: Optional[str] = None) -> dict:
     """
     Answer a natural-language question with the chatbot: {"answer",
     "question_logic", "answer_logic"}. The logical forms are the SMT-LIB the
@@ -95,12 +96,17 @@ def answer_q_with_logic(question: str, num_jobs: int = 10) -> dict:
     Runs `num_jobs` attempts in parallel and returns the first proved answer.
     An attempt that ends in "I don't know" does not stop the others: the
     question is "I don't know" only when every attempt is.
+
+    `theory` answers against that SMT-LIB theory instead of the loaded one
+    (THEORY). The workers get the theory as an argument, so calls for
+    different theories can run at the same time.
     """
     global THEORY, PREV_QUESTIONS
     PREV_QUESTIONS.append(question)
+    theory = THEORY if theory is None else theory
     results = starmap_with_dupes(
         worker=answer_q_,
-        arguments=[(THEORY, question,) for _ in range(num_jobs)],
+        arguments=[(theory, question,) for _ in range(num_jobs)],
         job_prefix="job",
         pool_size=num_jobs,
         do_spawn_dupes=False,

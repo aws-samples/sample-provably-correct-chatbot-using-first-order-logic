@@ -91,6 +91,28 @@ export function askQuestion(text: string, theoryId?: string): Promise<AskRespons
   });
 }
 
+// Super Chat: one theory's reply to a question asked of several at once.
+export interface MultiAnswer {
+  theory_id: string;
+  theory_name: string;
+  answer: string;
+  verified: boolean;
+  question_logic?: string | null;
+  answer_logic?: string | null;
+}
+
+// Ask one question of several theories at once; one reply per theory.
+export function askMultipleTheories(
+  text: string,
+  theoryIds: string[]
+): Promise<{ answers: MultiAnswer[] }> {
+  return getJson('/ask-multi', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, theory_ids: theoryIds }),
+  });
+}
+
 export function fetchLuckyQuestion(theoryId?: string): Promise<LuckyResponse> {
   const q = theoryId ? `?theory_id=${encodeURIComponent(theoryId)}` : '';
   return getJson<LuckyResponse>(`/lucky${q}`);
