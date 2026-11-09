@@ -96,7 +96,7 @@ flowchart TB
     user([User's browser<br/>React SPA])
 
     subgraph aws["AWS account, default region us-east-1 (CDK: ProvablyCorrectChatbotStack)"]
-        cf["CloudFront (HTTPS)<br/>caches /static/*; passes /ask /subject<br/>/lucky /lucky-questions /api/* /auth/* uncached"]
+        cf["CloudFront (HTTPS)<br/>caches /static/*; passes /ask /ask-multi /subject<br/>/lucky /lucky-questions /api/* /auth/* uncached"]
         cognito["Cognito user pool + Hosted UI<br/>(OAuth authorization-code flow)"]
 
         subgraph vpc["VPC: 2 AZs, 1 NAT gateway"]

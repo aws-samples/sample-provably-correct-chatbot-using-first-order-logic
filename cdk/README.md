@@ -10,7 +10,7 @@ prerequisites and troubleshooting are in the main README:
 
 ```
   Internet ──▶ CloudFront (HTTPS; caches /static/*)
-                  │  /ask /subject /lucky /lucky-questions /api/* /auth/* uncached
+                  │  /ask /ask-multi /subject /lucky /lucky-questions /api/* /auth/* uncached
                   ▼
                  ALB (HTTP :80, public subnets)
                   ▼

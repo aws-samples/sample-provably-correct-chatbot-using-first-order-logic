@@ -504,10 +504,13 @@ export class ChatbotStack extends cdk.Stack {
           allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
           cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
         },
-        // The chatbot endpoints the frontend calls (api.ts): /ask, /subject,
-        // /lucky, /lucky-questions. All go to the ALB, uncached, full
-        // passthrough.
+        // The chatbot endpoints the frontend calls (api.ts): /ask,
+        // /ask-multi (Super Chat), /subject, /lucky, /lucky-questions. All go
+        // to the ALB, uncached, full passthrough. Each needs its own entry:
+        // the default behavior allows only GET/HEAD, so a POST to a path
+        // missing here is refused by CloudFront.
         '/ask': apiBehavior,
+        '/ask-multi': apiBehavior,
         '/subject': apiBehavior,
         '/lucky': apiBehavior,
         '/lucky-questions': apiBehavior,
