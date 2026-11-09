@@ -679,7 +679,7 @@ function jobDetailsLink(t: TheorySummary, onOpenJob: (jobId: string) => void) {
   return (
     <button
       type="button"
-      className="job-details-link"
+      className="job-details-button"
       onClick={() => onOpenJob(jobId)}
       title="Open the Job Details tab for this theory's latest build"
     >

@@ -528,24 +528,9 @@
   font-size: 12px;
 }
 
-/* The link from a theory row to its build's Job Details tab. */
-.job-details-link {
-  background: none;
-  border: none;
-  padding: 0;
-  font: inherit;
-  font-size: 13px;
-  color: var(--color-link, #3b82f6);
-  cursor: pointer;
-  text-decoration: underline;
-}
-
-.job-details-link:hover {
-  text-decoration: none;
-}
-
-/* Chat and Rebuild are constructive actions, so they use the accent color
-   (outlined) rather than the error color the Delete button uses. */
+/* Job details, Chat and Rebuild are constructive actions, so they use the
+   accent color (outlined) rather than the error color the Delete button uses. */
+.job-details-button,
 .chat-button,
 .rebuild-button {
   background: transparent;
@@ -557,6 +542,7 @@
   cursor: pointer;
 }
 
+.job-details-button:hover:not(:disabled),
 .chat-button:hover:not(:disabled),
 .rebuild-button:hover:not(:disabled) {
   background: var(--color-accent);
