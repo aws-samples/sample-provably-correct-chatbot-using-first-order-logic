@@ -46,6 +46,9 @@ SESSION_SECRET = os.environ.get("SESSION_SECRET", "dev-insecure-secret")
 # Auth is only ENABLED when the pool is configured. This lets the container
 # run locally (no Cognito) without an auth wall, and keeps /healthz honest.
 AUTH_ENABLED = bool(USER_POOL_ID and CLIENT_ID and COGNITO_DOMAIN)
+# Set by the deployed stack: there, running without Cognito is an error, not
+# the local-development fallback (see init).
+AUTH_REQUIRED = os.environ.get("AUTH_REQUIRED", "").strip().lower() in ("1", "true", "yes")
 
 SESSION_COOKIE = "chatbot_session"
 SESSION_MAX_AGE = 60 * 60 * 8  # 8 hours
@@ -84,8 +87,24 @@ def _get_jwks() -> dict:
 
 
 def init() -> None:
-    """Warm the client secret + JWKS at startup so first login is fast."""
+    """
+    Warm the client secret + JWKS at startup so first login is fast.
+
+    Raises (so the server does not start) when AUTH_REQUIRED is set but the
+    Cognito settings are missing: the deployed stack sets it, so a missing
+    setting there cannot silently switch the auth wall off. Local runs leave
+    it unset and may run without Cognito.
+    """
     if not AUTH_ENABLED:
+        if AUTH_REQUIRED:
+            missing = [name for name, value in (
+                ("COGNITO_USER_POOL_ID", USER_POOL_ID),
+                ("COGNITO_CLIENT_ID", CLIENT_ID),
+                ("COGNITO_DOMAIN", COGNITO_DOMAIN)) if not value]
+            raise RuntimeError(
+                "auth: AUTH_REQUIRED is set but Cognito is not configured "
+                f"(missing {', '.join(missing)}); refusing to start without "
+                "an auth wall")
         print("auth: Cognito not configured; running WITHOUT an auth wall")
         return
     _fetch_client_secret()

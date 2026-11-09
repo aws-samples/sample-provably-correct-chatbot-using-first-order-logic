@@ -90,12 +90,15 @@ The web app keeps its theories in S3 and DynamoDB, so running it locally needs
 a deployed stack's store: set `THEORY_STORE_BUCKET`, `THEORIES_TABLE` and
 `JOBS_TABLE` to the stack's resources. Without the builder settings
 (`BUILDER_TASK_DEF`, ...) a build cannot start. Without the Cognito settings
-the app runs unauthenticated. In two terminals:
+the app runs unauthenticated, unless `AUTH_REQUIRED=1` is set (the deployed
+stack sets it), in which case it refuses to start. In two terminals:
 
 ```bash
 # 1. the API, from the repo root
 cp cdk/docker/{server,auth,store,job_introspection,build_params,build_task}.py .
-uv run uvicorn server:app --port 8000
+# The dev server below is another origin, so allow it (the deployed app is
+# same-origin and enables no CORS).
+CORS_ALLOW_ORIGINS=http://localhost:3000 uv run uvicorn server:app --port 8000
 ```
 
 ```bash

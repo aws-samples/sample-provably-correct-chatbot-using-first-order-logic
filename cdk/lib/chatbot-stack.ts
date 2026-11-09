@@ -57,6 +57,13 @@ export class ChatbotStack extends cdk.Stack {
     });
 
     const cluster = new ecs.Cluster(this, 'Cluster', { vpc });
+    // Every task in this cluster (task ids are unknown at synth time):
+    // arn:aws:ecs:<region>:<account>:task/<cluster name>/*
+    const clusterTasksArn = cdk.Stack.of(this).formatArn({
+      service: 'ecs',
+      resource: 'task',
+      resourceName: `${cluster.clusterName}/*`,
+    });
 
     // --- Cognito (app-level auth) ----------------------------------------
     // A user pool of its own. The chatbot is private: the
@@ -205,6 +212,9 @@ export class ChatbotStack extends cdk.Stack {
             // DescribeUserPoolClient (task role grant below), so it is never
             // embedded in the task definition. The Hosted UI domain and the
             // OAuth code-exchange token endpoint are derived from these.
+            // The server refuses to start without the Cognito settings below
+            // (auth.init), so a missing one cannot switch the login off.
+            AUTH_REQUIRED: '1',
             COGNITO_USER_POOL_ID: userPool.userPoolId,
             COGNITO_CLIENT_ID: userPoolClient.userPoolClientId,
             COGNITO_DOMAIN:
@@ -400,7 +410,7 @@ export class ChatbotStack extends cdk.Stack {
         // task silently falls back to the inline runner. Task ARNs are unknown
         // at synth time, so scope to the task wildcard in this cluster.
         actions: ['ecs:TagResource'],
-        resources: ['*'],
+        resources: [clusterTasksArn],
         conditions: {
           ArnEquals: { 'ecs:cluster': cluster.clusterArn },
         },
@@ -412,7 +422,7 @@ export class ChatbotStack extends cdk.Stack {
         // task ARNs are not known at synth time, so the resource is the task
         // wildcard in this cluster.
         actions: ['ecs:StopTask', 'ecs:DescribeTasks'],
-        resources: ['*'],
+        resources: [clusterTasksArn],
         conditions: {
           ArnEquals: { 'ecs:cluster': cluster.clusterArn },
         },

@@ -151,3 +151,11 @@ def test_ask_multi_takes_up_to_eight_theories(server, monkeypatch):
         server.ask_multiple_theories(
             server.MultiQuestion(text="?", theory_ids=[str(i) for i in range(9)]), user={})
     assert ex.value.status_code == 400 and "at most 8" in ex.value.detail
+
+
+def test_no_cors_unless_an_origin_is_configured(server):
+    # The deployed app is same-origin; CORS is only for a local dev server.
+    from fastapi.middleware.cors import CORSMiddleware
+    if os.environ.get("CORS_ALLOW_ORIGINS"):
+        pytest.skip("CORS_ALLOW_ORIGINS is set in this environment")
+    assert not any(m.cls is CORSMiddleware for m in server.app.user_middleware)

@@ -207,6 +207,10 @@ To deploy from CodeBuild instead of a workstation, point a project of its own (`
 
 [`INSTALL.md`](INSTALL.md) covers installing cvc5 and kiro-cli, the `uv` Python environment, building a theory from the command line, and running the chatbot locally.
 
+### Removing the stack
+
+`cdk destroy ProvablyCorrectChatbotStack` deletes everything the stack created, data included. As a sample, the stack sets `RemovalPolicy.DESTROY` on the Cognito user pool (and its users), the S3 bucket (emptied first, `autoDeleteObjects`: every source document and built theory), both DynamoDB tables (theory and job records) and both CloudWatch log groups. For anything you want to keep, change those to `RemovalPolicy.RETAIN` (and drop `autoDeleteObjects`) in `cdk/lib/chatbot-stack.ts` before deploying.
+
 ### Cost
 
 Always on: the web task (2 vCPU / 8 GB ARM Fargate), one NAT gateway and CloudFront. Per build: a builder task (8 vCPU / 48 GB ARM Fargate) for the duration of the build, the Bedrock calls for standalone rewrites, test-set generation and re-verification, and the kiro-cli credits of its sessions. Job Details shows each build's kiro-cli credits and their dollar cost (at `KIRO_DOLLARS_PER_CREDIT`, default $0.04).

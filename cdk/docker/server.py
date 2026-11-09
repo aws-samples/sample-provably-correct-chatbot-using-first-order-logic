@@ -46,14 +46,20 @@ _loaded_theory_id: str = ""
 # sync by _apply_theory. Served by GET /lucky-questions for the picker.
 _suggested_questions: list = []
 
-# CloudFront serves the SPA same-origin, so CORS is not strictly needed in
-# production. Kept permissive so the API also works from a local `npm start`.
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CloudFront serves the SPA from the same origin as the API, so the deployed
+# app needs no CORS. For a local `npm start` dev server on another port, set
+# CORS_ALLOW_ORIGINS to its origin(s), comma separated (e.g.
+# http://localhost:3000). Unset (the default, and in the stack): no CORS.
+_cors_origins = [o.strip() for o in os.environ.get("CORS_ALLOW_ORIGINS", "").split(",")
+                 if o.strip()]
+if _cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins,
+        allow_credentials=True,  # the app authenticates with a session cookie
+        allow_methods=["GET", "POST", "PATCH", "DELETE"],
+        allow_headers=["Content-Type"],
+    )
 
 
 class Question(BaseModel):
