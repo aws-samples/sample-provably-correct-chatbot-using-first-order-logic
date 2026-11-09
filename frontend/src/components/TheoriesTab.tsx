@@ -580,7 +580,7 @@ export function TheoriesTab({
                         : `No questions yet (status: ${t.status})`
                     }
                   >
-                    Q&amp;As
+                    Test set
                   </button>
                   <button
                     type="button"
