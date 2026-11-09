@@ -9,7 +9,7 @@ import { Composer } from './Composer';
 
 const SELECTED_KEY = 'chatbot.superChatTheories';
 // Matches MAX_SUPER_CHAT_THEORIES on the server.
-export const MAX_SUPER_CHAT_THEORIES = 5;
+export const MAX_SUPER_CHAT_THEORIES = 8;
 
 function loadSelected(): string[] {
   try {

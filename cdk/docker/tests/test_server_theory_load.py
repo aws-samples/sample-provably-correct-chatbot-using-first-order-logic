@@ -135,3 +135,19 @@ def test_ask_multi_refuses_no_theories_and_unready_ones(server, monkeypatch):
     with pytest.raises(server.HTTPException) as ex:
         server.ask_multiple_theories(server.MultiQuestion(text="?", theory_ids=["c"]), user={})
     assert ex.value.status_code == 409 and "Tides" in ex.value.detail
+
+
+def test_ask_multi_takes_up_to_eight_theories(server, monkeypatch):
+    details = {str(i): _detail(str(i), f"T{i}", f"(t{i})") for i in range(9)}
+    monkeypatch.setattr(server.store, "get_theory", details.get)
+    seen = []
+    monkeypatch.setattr(server.chatbot_backend, "answer_q_with_logic",
+                        lambda text, num_jobs=10, theory=None: seen.append(num_jobs) or dict(
+                            answer="Yes.", question_logic=None, answer_logic=None))
+    out = server.ask_multiple_theories(
+        server.MultiQuestion(text="?", theory_ids=[str(i) for i in range(8)]), user={})
+    assert len(out["answers"]) == 8 and seen == [2] * 8
+    with pytest.raises(server.HTTPException) as ex:
+        server.ask_multiple_theories(
+            server.MultiQuestion(text="?", theory_ids=[str(i) for i in range(9)]), user={})
+    assert ex.value.status_code == 400 and "at most 8" in ex.value.detail

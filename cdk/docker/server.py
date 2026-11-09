@@ -66,10 +66,11 @@ class MultiQuestion(BaseModel):
     theory_ids: list[str]
 
 
-# Super Chat: at most this many theories per question, and this many prover
-# attempts in all, shared between them (at least two per theory), so a
-# question to several theories costs the web task about what one does.
-MAX_SUPER_CHAT_THEORIES = 5
+# Super Chat: at most this many theories per question. The prover attempts
+# of one /ask are shared between them, at least two per theory, so up to five
+# theories cost the web task what one question does; six to eight run 12 to
+# 16 prover processes.
+MAX_SUPER_CHAT_THEORIES = 8
 SUPER_CHAT_ATTEMPTS = 10
 
 
