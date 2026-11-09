@@ -762,7 +762,8 @@ def _proc_table() -> Dict[int, Tuple[int, int]]:
     return table
 
 
-def kill_process_tree(root_pid: int, include_root: bool = True) -> List[int]:
+def kill_process_tree(root_pid: int, include_root: bool = True,
+                      stop_only: bool = False) -> List[int]:
     """
     SIGKILL `root_pid`, every descendant of it, and every other member of any
     session a descendant started. The session sweep catches processes that
@@ -777,35 +778,82 @@ def kill_process_tree(root_pid: int, include_root: bool = True) -> List[int]:
         return []
     me = os.getpid()
     my_sid = os.getsid(0)
-    table = _proc_table()
-    children: Dict[int, List[int]] = defaultdict(list)
-    for pid, (ppid, _sid) in table.items():
-        children[ppid].append(pid)
-    tree, stack = set(), [root_pid]
-    while stack:
-        pid = stack.pop()
-        if pid in tree:
-            continue
-        tree.add(pid)
-        stack.extend(children.get(pid, []))
-    sessions = {table[p][1] for p in tree if p in table}
-    # A root started with start_new_session=True leads a session whose id is
-    # its pid; sweep that session even if the root has already exited (its
-    # orphaned children are then re-parented and not in `tree`).
-    sessions.add(root_pid)
-    sessions.discard(my_sid)
-    targets = tree | {pid for pid, (_pp, sid) in table.items() if sid in sessions}
-    if not include_root:
-        targets.discard(root_pid)
-    targets.discard(me)
+
+    def find_targets() -> Set[int]:
+        table = _proc_table()
+        children: Dict[int, List[int]] = defaultdict(list)
+        for pid, (ppid, _sid) in table.items():
+            children[ppid].append(pid)
+        tree, stack = set(), [root_pid]
+        while stack:
+            pid = stack.pop()
+            if pid in tree:
+                continue
+            tree.add(pid)
+            stack.extend(children.get(pid, []))
+        sessions = {table[p][1] for p in tree if p in table}
+        # A root started with start_new_session=True leads a session whose id
+        # is its pid; sweep that session even if the root has already exited
+        # (its orphaned children are then re-parented and not in `tree`).
+        sessions.add(root_pid)
+        sessions.discard(my_sid)
+        found = tree | {pid for pid, (_pp, sid) in table.items() if sid in sessions}
+        if not include_root:
+            found.discard(root_pid)
+        found.discard(me)
+        return found
+
+    stopped = _stop_tree(find_targets)
+    if stop_only:  # the caller kills them (kill_process_trees)
+        return sorted(stopped)
+    return _sigkill(stopped)
+
+
+def _stop_tree(find_targets: Callable[[], Set[int]]) -> Set[int]:
+    """
+    SIGSTOP every process `find_targets` returns, rescanning until nothing
+    new appears; returns the pids stopped. A process that forks between a
+    /proc snapshot and its SIGKILL would leave a child the snapshot missed,
+    re-parented and out of reach once its parent is gone. A stopped process
+    cannot fork, and a child it already started is still its child.
+    """
+    stopped: Set[int] = set()
+    for _ in range(10):
+        new = find_targets() - stopped
+        if not new:
+            break
+        for pid in new:
+            try:
+                os.kill(pid, signal.SIGSTOP)
+            except (ProcessLookupError, PermissionError):
+                pass
+            stopped.add(pid)
+    return stopped
+
+
+def _sigkill(pids: Set[int]) -> List[int]:
     killed = []
-    for pid in targets:
+    for pid in pids:
         try:
             os.kill(pid, signal.SIGKILL)
             killed.append(pid)
         except (ProcessLookupError, PermissionError):
             pass
     return killed
+
+
+def kill_process_trees(root_pids: List[int]) -> List[int]:
+    """
+    kill_process_tree for several roots at once: stop every tree before
+    killing any. Killing one pool worker first makes ProcessPoolExecutor
+    treat the pool as broken and terminate the others itself, which orphans
+    their session-leading children before they could be found (seen as a
+    leftover `sleep` in test_pool_kills_leftover_runs_on_return).
+    """
+    stopped: Set[int] = set()
+    for root in root_pids:
+        stopped |= set(kill_process_tree(root, stop_only=True))
+    return _sigkill(stopped)
 
 
 def starmap_with_dupes(
@@ -956,13 +1004,16 @@ def starmap_with_dupes(
         # hours after layer 1 ended, holding a session slot. Kill every still-
         # running worker and everything it started.
         workers = list((getattr(executor, "_processes", None) or {}).values())
-        executor.shutdown(wait=False, cancel_futures=True)
         if pending:
-            for proc in workers:
-                if proc.is_alive():
-                    killed = kill_process_tree(proc.pid)
-                    print(f"swd: killed leftover worker {proc.pid} "
-                          f"({len(killed)} process(es))")
+            # Stop every worker's tree before killing any (kill_process_trees),
+            # and before shutdown, so the pool cannot terminate a worker first
+            # and orphan what it started.
+            alive = [proc.pid for proc in workers if proc.is_alive()]
+            if alive:
+                killed = kill_process_trees(alive)
+                print(f"swd: killed {len(alive)} leftover worker(s) "
+                      f"({len(killed)} process(es))")
+        executor.shutdown(wait=False, cancel_futures=True)
         return results
 
     # Fill the pool to pool_size (fresh jobs, then dupes if enabled).
