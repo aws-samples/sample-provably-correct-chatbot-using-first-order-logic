@@ -208,7 +208,9 @@ def kill_job(job_id: str) -> dict:
     # this process. Stop that task so the build actually halts; the stopped
     # task's _run_job_safe sees the pipeline torn down and records cancellation.
     # (We also mark the record cancelled below so the UI reflects it at once.)
-    builder_arn = job.get("builder_task_arn")
+    # The ARN is on the raw record; the job view (get_job) leaves it out.
+    raw = _jobs.get_item(Key={"id": job_id}).get("Item") or {}
+    builder_arn = raw.get("builder_task_arn")
     if builder_arn:
         try:
             _ecs().stop_task(cluster=BUILDER_CLUSTER, task=builder_arn,
@@ -238,13 +240,13 @@ def kill_job(job_id: str) -> dict:
                 finished_at=_now(),
                 log_tail=_tail(f"{job.get('theory_name') or job_id}: "
                                "cancelled by user"))
-    # If the theory was still building, mark it failed so it doesn't sit in
-    # "building" forever (the job that would have readied it is gone).
+    # If the theory was still building, mark it cancelled (not failed: the
+    # user stopped it) so it leaves "building" and can be rebuilt or deleted.
     tid = job.get("theory_id")
     if tid:
         item = _get_theory_item(tid)
         if item and item.get("status") == "building":
-            _update_theory(tid, status="failed")
+            _update_theory(tid, status="cancelled")
     return {"ok": True, "job": get_job(job_id)}
 
 
@@ -1573,6 +1575,15 @@ def _dispatch_build(job_id: str, theory_id: str, subject_id: str, name: str,
     return tasks[0].get("taskArn", "")
 
 
+def _job_was_cancelled(job_id: str) -> bool:
+    """True when the job record says the user killed it (kill_job)."""
+    try:
+        job = _jobs.get_item(Key={"id": job_id}).get("Item") if ENABLED else None
+    except Exception:  # pylint: disable=broad-except
+        return False
+    return bool(job) and job.get("status") == "cancelled"
+
+
 def _run_job_safe(job_id, theory_id, subject_id, name, source_text, doc_type,
                   build_params: Optional[dict] = None) -> None:
     try:
@@ -1587,6 +1598,13 @@ def _run_job_safe(job_id, theory_id, subject_id, name, source_text, doc_type,
         _jlog(job_id, "cancelled: build stopped by user")
         _update_theory(theory_id, status="cancelled")
     except Exception as ex:  # pylint: disable=broad-except
+        if _job_was_cancelled(job_id):
+            # Killed from the UI: kill_job already marked the job cancelled and
+            # stopped this builder task, and the error is the build being torn
+            # down. Keep it cancelled rather than overwriting it with failed.
+            _jlog(job_id, f"cancelled: build stopped by user ({ex})")
+            _update_theory(theory_id, status="cancelled")
+            return
         tb = traceback.format_exc()
         # Tag every traceback line with the job marker so job_logs captures the
         # whole traceback from the shared stream, not just its first line.

@@ -151,7 +151,7 @@ export function TheoriesTab({ theories, jobs, onChanged, onOpenChat, onOpenJob }
     setCancelling((prev) => new Set(prev).add(t.id));
     try {
       await killJob(t.job_id);
-      onChanged(); // parent refetches: theory flips building -> failed
+      onChanged(); // parent refetches: theory flips building -> cancelled
     } catch {
       window.alert('Could not cancel the build. Please try again.');
     } finally {
