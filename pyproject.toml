@@ -10,28 +10,28 @@ requires-python = ">=3.12"
 dependencies = [
     "beautifulsoup4>=4.14.2",
     "fastapi>=0.121.3",
-    "jupyterlab>=4.5.2",
     "nltk>=3.9.2",
-    "pyflakes>=3.4.0",
-    "pylint>=4.0.2",
     "pyyaml>=6.0.3",
     "requests>=2.32.5",
-    "rich>=14.2.0",
     "strands-agents>=1.15.0",
     "uvicorn>=0.38.0",
-    "pylibyaml>=0.1",
     "prompt-toolkit>=3.0",
-    "awslambdaric>=3.1.1",
     "langfuse>=3.12.0",
+    # scripts/parse-MDM-pdf.py (MDM documents from PDF)
     "pdfplumber>=0.11.9",
     "boto3>=1.40.75",
     "botocore>=1.40.75",
-    "py-spy>=0.4.1",
     "numpy>=2.4.2",
     "colorama>=0.4.6",
+    "python-dotenv>=1.0",
+    # The web service's Cognito auth (cdk/docker/auth.py), for running it locally.
+    "itsdangerous>=2.2",
+    "python-jose[cryptography]>=3.5",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=9.0.0",
+    "pyflakes>=3.4.0",
+    "pylint>=4.0.2",
 ]
