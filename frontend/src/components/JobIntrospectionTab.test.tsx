@@ -280,3 +280,35 @@ test('the step a stopped build was on keeps its plain label', async () => {
   const summary = await screen.findByRole('region', { name: 'Build summary' });
   expect(within(summary).getAllByRole('listitem')[2]).toHaveTextContent(/^Build theory$/);
 });
+
+const PARAM_SPECS = [
+  { key: 'ncar_ratio', group: 'Test set', type: 'float', label: 'Required correct ratio',
+    default: 0.85, help: 'Correct test answers the theory needs.' },
+  { key: 'kiro_max_attempts', group: 'kiro-cli', type: 'int', label: 'Sessions',
+    default: 3, help: 'kiro-cli sessions.' },
+  { key: 'kiro_model', group: 'kiro-cli', type: 'choice', label: 'kiro-cli model',
+    default: '', help: 'Model.' },
+];
+
+test('Job parameters summarizes the job\u2019s build parameters in a pop-up', async () => {
+  const job = { ...JOB, build_params: { ncar_ratio: 0.8, kiro_max_attempts: 3, kiro_model: '' } };
+  mockFetch({ '/introspection': { ...INTROSPECTION, job }, '/api/build-params': { params: PARAM_SPECS } });
+  render(<JobIntrospectionTab jobs={[job]} jobId="job-1" />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Job parameters' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Job parameters: Photosynthesis' });
+  const testSet = await within(dialog).findByRole('table', { name: 'Test set' });
+  expect(within(testSet).getByRole('row')).toHaveTextContent('Required correct ratio0.8 (not the default)');
+  const kiro = within(dialog).getByRole('table', { name: 'kiro-cli' });
+  expect(within(kiro).getAllByRole('row').map((r) => r.textContent)).toEqual([
+    'Sessions3', 'kiro-cli model(default model)',
+  ]);
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+test('a job from before parameters were recorded says so', async () => {
+  mockFetch({ '/introspection': INTROSPECTION, '/api/build-params': { params: PARAM_SPECS } });
+  render(<JobIntrospectionTab jobs={[JOB]} jobId="job-1" />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Job parameters' }));
+  expect(await screen.findByText(/did not record its parameters/)).toBeInTheDocument();
+});

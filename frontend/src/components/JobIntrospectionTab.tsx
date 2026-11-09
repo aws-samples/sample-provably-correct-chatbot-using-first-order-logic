@@ -15,6 +15,7 @@ import {
 } from '../types';
 import { buildLogsDownloadUrl, fetchBuildLogs, fetchJobIntrospection } from '../api';
 import { KiroLiveView } from './KiroLiveView';
+import { JobParamsModal } from './JobParamsModal';
 import { formatCost, formatDollars, formatDuration, formatSessionCost } from '../kiroCost';
 
 interface JobIntrospectionTabProps {
@@ -124,6 +125,8 @@ export function JobIntrospectionTab({ jobs, jobId }: JobIntrospectionTabProps) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState<BuildView>('sentences');
+  // The Job parameters pop-up.
+  const [showParams, setShowParams] = useState(false);
 
   const selected = jobs.find((j) => j.id === jobId) ?? data?.job;
   const live = isLive(selected);
@@ -167,9 +170,27 @@ export function JobIntrospectionTab({ jobs, jobId }: JobIntrospectionTabProps) {
         <span className="introspection-job-label">
           {selected ? jobLabel(selected) : jobId}
         </span>
+        {selected && (
+          <button
+            type="button"
+            className="job-params-button"
+            onClick={() => setShowParams(true)}
+            title="The parameters this job was built with"
+          >
+            Job parameters
+          </button>
+        )}
         {loading && <span className="muted small">refreshing…</span>}
         {live && !loading && <span className="muted small">live · updates every 5s</span>}
       </div>
+
+      {showParams && selected && (
+        <JobParamsModal
+          jobName={selected.theory_name ?? selected.theory_id ?? selected.id}
+          params={selected.build_params}
+          onClose={() => setShowParams(false)}
+        />
+      )}
 
       {error && <p className="error-text">{error}</p>}
       {data && !data.available && <p className="muted">{data.note}</p>}

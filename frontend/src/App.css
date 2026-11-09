@@ -984,6 +984,67 @@
   margin: 0;
 }
 
+/* The Job parameters button and its read-only pop-up. */
+.job-params-button {
+  background: transparent;
+  color: var(--color-accent);
+  border: 1px solid var(--color-accent);
+  border-radius: 4px;
+  padding: 2px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.job-params-button:hover {
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+}
+
+.job-params-modal {
+  width: min(560px, 92vw);
+}
+
+.job-params-body {
+  padding: 12px 16px 16px;
+  overflow-y: auto;
+}
+
+.job-params-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+.job-params-table caption {
+  text-align: left;
+  font-weight: 600;
+  padding-bottom: 4px;
+}
+
+.job-params-table th,
+.job-params-table td {
+  text-align: left;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--color-divider);
+  vertical-align: top;
+}
+
+.job-params-table th {
+  font-weight: normal;
+  width: 55%;
+}
+
+.job-params-table tr.changed td {
+  font-weight: 600;
+}
+
+.job-params-changed {
+  font-weight: normal;
+  font-size: 12px;
+  opacity: 0.75;
+}
+
 /* Status colours: one variable per status, reused by boxes, swatches and the
    modal's status pill. Boxes keep dark text on a light background; the colour
    is a left border plus the printed status, never colour alone. */
