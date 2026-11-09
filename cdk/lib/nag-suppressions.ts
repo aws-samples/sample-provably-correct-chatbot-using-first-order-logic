@@ -96,6 +96,13 @@ export function addNagSuppressions(stack: cdk.Stack): void {
         'Cognito threat protection (advanced security) is an extra per-user ' +
         'charge; sign-up is admin-only. Enable it for production.',
     },
+    {
+      id: 'AwsSolutions-COG8',
+      reason:
+        'The user pool is on the default (Essentials) feature plan: the Plus ' +
+        'plan, which threat protection needs, is an extra per-user charge, ' +
+        'and sign-up is admin-only. Use the Plus plan for production.',
+    },
   ]);
 
   // --- Storage ----------------------------------------------------------------

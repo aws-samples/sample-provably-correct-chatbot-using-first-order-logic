@@ -209,7 +209,7 @@ To deploy from CodeBuild instead of a workstation, point a project of its own (`
 
 ### Security checks (cdk-nag)
 
-Every `cdk synth` and `cdk deploy` runs [cdk-nag](https://github.com/cdklabs/cdk-nag)'s AWS Solutions rules over the stack, and an unsuppressed finding fails it. The findings this sample accepts are suppressed in [`cdk/lib/nag-suppressions.ts`](cdk/lib/nag-suppressions.ts), each with its reason and what a production deployment should do instead. They are: no WAF, geo restriction or access logs on CloudFront, the ALB or S3; no VPC flow logs, Container Insights or DynamoDB point-in-time recovery; HTTP from CloudFront to the ALB (no custom domain or certificate) and an ALB open to the internet; no Cognito MFA or threat protection; and the IAM wildcards CDK grants and Bedrock cross-region inference need. The synth writes the full report to `cdk/cdk.out/AwsSolutions-ProvablyCorrectChatbotStack-NagReport.csv`.
+Every `cdk synth` and `cdk deploy` runs [cdk-nag](https://github.com/cdklabs/cdk-nag)'s AWS Solutions rules over the stack, and an unsuppressed finding fails it. The findings this sample accepts are suppressed in [`cdk/lib/nag-suppressions.ts`](cdk/lib/nag-suppressions.ts), each with its reason and what a production deployment should do instead. They are: no WAF, geo restriction or access logs on CloudFront, the ALB or S3; no VPC flow logs, Container Insights or DynamoDB point-in-time recovery; HTTP from CloudFront to the ALB (no custom domain or certificate) and an ALB open to the internet; no Cognito MFA, threat protection or Plus feature plan; and the IAM wildcards CDK grants and Bedrock cross-region inference need. The synth writes the full report to `cdk/cdk.out/AwsSolutions-*-NagReport.csv`.
 
 ### Removing the stack
 
