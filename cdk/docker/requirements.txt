@@ -6,33 +6,35 @@
 # module load, even though globals.DO_USE_OTEL is False. So these packages
 # must be INSTALLED (import-time), but no Langfuse keys are needed at runtime.
 #
-# Versions are intentionally loose (no lockfile in the repo yet). Pin these
-# once you have a working deploy to make the image reproducible.
+# Each package is bounded below at the version the image was last built and
+# tested with and above at its next major release (next minor for 0.x
+# packages, whose minors can break), so a rebuild takes patch and minor fixes
+# but no breaking release. Raise a bound deliberately, then rebuild and test.
 
 # Web layer
-fastapi
-uvicorn[standard]
+fastapi>=0.162.2,<0.163
+uvicorn[standard]>=0.54.0,<0.55
 
 # AWS / Bedrock LLM access
-boto3
-strands-agents
+boto3>=1.43,<2
+strands-agents>=1.64,<2
 
 # Theory + document processing
-pyyaml
-nltk
-beautifulsoup4
-numpy
-requests
+pyyaml>=6.0.3,<7
+nltk>=3.10.4,<4
+beautifulsoup4>=4.15,<5
+numpy>=2.5,<3
+requests>=2.34,<3
 
 # Config / CLI / tracing (imported at module load)
-python-dotenv
-prompt_toolkit
-colorama
-langfuse
-opentelemetry-api
-opentelemetry-sdk
+python-dotenv>=1.2,<2
+prompt_toolkit>=3.0.53,<4
+colorama>=0.4.6,<0.5
+langfuse>=5.2,<6
+opentelemetry-api>=1.45,<2
+opentelemetry-sdk>=1.45,<2
 
 # App-level Cognito auth: verify Cognito OIDC tokens (JWKS) and sign the
 # app's own session cookie.
-PyJWT[crypto]
-itsdangerous
+PyJWT[crypto]>=2.15,<3
+itsdangerous>=2.2,<3
