@@ -114,7 +114,7 @@ def parse_wikipedia_page(URL: str) -> List[str]:
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
     }
-    response = requests.get(URL, headers=headers)
+    response = requests.get(URL, headers=headers, timeout=30)
     print(f"response.status_code: {response.status_code}")
     return sentences_from_html(response.content)
 

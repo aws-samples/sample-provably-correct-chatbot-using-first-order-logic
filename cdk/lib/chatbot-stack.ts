@@ -136,6 +136,38 @@ export class ChatbotStack extends cdk.Stack {
       autoDeleteObjects: true,                  // sandbox
     });
 
+    // Explicit S3 access to the theory bucket, instead of grantReadWrite (which
+    // adds s3:Abort*, DeleteObject*, GetBucket* and the other List* actions).
+    // s3:ListBucket on the bucket makes a missing object read as NoSuchKey
+    // rather than AccessDenied, which store.py and job_introspection.py rely
+    // on to tell "not written yet" from an error.
+    const theoryBucketAccess = (role: iam.IRole, objectActions: string[]) => {
+      role.addToPrincipalPolicy(new iam.PolicyStatement({
+        actions: objectActions,
+        resources: [theoryBucket.arnForObjects('*')],
+      }));
+      role.addToPrincipalPolicy(new iam.PolicyStatement({
+        actions: ['s3:ListBucket'],
+        resources: [theoryBucket.bucketArn],
+      }));
+    };
+
+    // Bedrock InvokeModel for the models the app uses (globals.py): Anthropic
+    // Claude, through global.* / us.* cross-region inference profiles, and
+    // Titan text embeddings. A cross-region profile is authorized on the
+    // profile in this region and on the foundation model in whichever region
+    // it routes to, including the region-less arn:aws:bedrock:::foundation-
+    // model/... of global profiles, so the foundation-model region stays '*'.
+    const bedrockInvokeStatement = () => new iam.PolicyStatement({
+      actions: ['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream'],
+      resources: [
+        `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/global.anthropic.claude-*`,
+        `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/us.anthropic.claude-*`,
+        'arn:aws:bedrock:*::foundation-model/anthropic.claude-*',
+        `arn:aws:bedrock:${this.region}::foundation-model/amazon.titan-embed-*`,
+      ],
+    });
+
     const theoriesTable = new dynamodb.Table(this, 'TheoriesTable', {
       partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -262,15 +294,7 @@ export class ChatbotStack extends cdk.Stack {
 
     // --- Bedrock permissions (task role, not static creds) ----------------
     service.taskDefinition.taskRole.addToPrincipalPolicy(
-      new iam.PolicyStatement({
-        actions: [
-          'bedrock:InvokeModel',
-          'bedrock:InvokeModelWithResponseStream',
-        ],
-        // Cross-region inference profiles (global.* / us.*) resolve to
-        // foundation models in multiple regions, so scope to all regions.
-        resources: ['arn:aws:bedrock:*::foundation-model/*', `arn:aws:bedrock:*:${this.account}:inference-profile/*`],
-      })
+      bedrockInvokeStatement()
     );
 
     // The app fetches its own Cognito client secret at startup (so the secret
@@ -283,8 +307,10 @@ export class ChatbotStack extends cdk.Stack {
     );
 
     // The web task reads/writes the theory store (documents + computed
-    // theories in S3; theory/job indexes in DynamoDB) via store.py.
-    theoryBucket.grantReadWrite(service.taskDefinition.taskRole);
+    // theories in S3; theory/job indexes in DynamoDB) via store.py. It
+    // deletes a theory's two objects when the theory is deleted.
+    theoryBucketAccess(service.taskDefinition.taskRole,
+                       ['s3:GetObject', 's3:PutObject', 's3:DeleteObject']);
     theoriesTable.grantReadWriteData(service.taskDefinition.taskRole);
     jobsTable.grantReadWriteData(service.taskDefinition.taskRole);
 
@@ -367,19 +393,10 @@ export class ChatbotStack extends cdk.Stack {
     // Bedrock invoke, the theory store (S3 + both tables), and write access to
     // its own log group (the awslogs driver grants the EXECUTION role; this is
     // the TASK role).
-    builderTaskDef.taskRole.addToPrincipalPolicy(
-      new iam.PolicyStatement({
-        actions: [
-          'bedrock:InvokeModel',
-          'bedrock:InvokeModelWithResponseStream',
-        ],
-        resources: [
-          'arn:aws:bedrock:*::foundation-model/*',
-          `arn:aws:bedrock:*:${this.account}:inference-profile/*`,
-        ],
-      })
-    );
-    theoryBucket.grantReadWrite(builderTaskDef.taskRole);
+    builderTaskDef.taskRole.addToPrincipalPolicy(bedrockInvokeStatement());
+    // The builder reads the source document and writes the theory and its
+    // build progress; it never deletes.
+    theoryBucketAccess(builderTaskDef.taskRole, ['s3:GetObject', 's3:PutObject']);
     theoriesTable.grantReadWriteData(builderTaskDef.taskRole);
     jobsTable.grantReadWriteData(builderTaskDef.taskRole);
     // Read the Kiro API key for kiro-cli. Secrets Manager
@@ -436,6 +453,12 @@ export class ChatbotStack extends cdk.Stack {
           builderTaskDef.taskRole.roleArn,
           builderTaskDef.executionRole!.roleArn,
         ],
+        // Only to ECS, for RunTask: the web task cannot hand the builder's
+        // roles (and their S3, DynamoDB and Secrets Manager access) to any
+        // other service.
+        conditions: {
+          StringEquals: { 'iam:PassedToService': 'ecs-tasks.amazonaws.com' },
+        },
       })
     );
 

@@ -138,25 +138,24 @@ export function addNagSuppressions(stack: cdk.Stack): void {
   const bedrock = {
     id: 'AwsSolutions-IAM5',
     reason:
-      'Bedrock InvokeModel on foundation models and inference profiles in any ' +
-      'region: cross-region inference profiles route a request to a model in ' +
-      'another region, so the model ARN cannot be pinned to one region.',
+      'Bedrock InvokeModel limited to the model families the app uses ' +
+      '(Anthropic Claude, Titan text embeddings) and to inference profiles in ' +
+      'this region; the trailing * covers model versions. The Claude ' +
+      'foundation-model region is * because a cross-region inference profile ' +
+      'is authorized on the model in whichever region it routes to.',
     appliesTo: [
-      'Resource::arn:aws:bedrock:*::foundation-model/*',
-      re('^Resource::arn:aws:bedrock:\\*:[0-9]+:inference-profile\\/\\*$'),
+      'Resource::arn:aws:bedrock:*::foundation-model/anthropic.claude-*',
+      re('^Resource::arn:aws:bedrock:[a-z0-9-]+::foundation-model\\/amazon\\.titan-embed-\\*$'),
+      re('^Resource::arn:aws:bedrock:[a-z0-9-]+:[0-9]+:inference-profile\\/(global|us)\\.anthropic\\.claude-\\*$'),
     ],
   };
   const bucketObjects = {
     id: 'AwsSolutions-IAM5',
     reason:
-      'CDK grantReadWrite on the theory bucket: object-level actions on its ' +
-      'objects (<bucket>/*) only. Source documents, theories and build ' +
-      'progress are written under ids not known at synth time.',
-    appliesTo: [
-      'Action::s3:GetObject*', 'Action::s3:GetBucket*', 'Action::s3:List*',
-      'Action::s3:DeleteObject*', 'Action::s3:Abort*',
-      re('^Resource::<TheoryStore[A-Za-z0-9]+\\.Arn>\\/\\*$'),
-    ],
+      'Explicit object actions (Get/Put, plus Delete for the web task) on the ' +
+      'theory bucket\'s objects (<bucket>/*) only. Source documents, theories ' +
+      'and build progress are written under ids not known at synth time.',
+    appliesTo: [re('^Resource::<TheoryStore[A-Za-z0-9]+\\.Arn>\\/\\*$')],
   };
   suppress('Service/TaskDef/TaskRole/DefaultPolicy/Resource', [
     bedrock,

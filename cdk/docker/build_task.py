@@ -129,11 +129,17 @@ def _discover_task_arn() -> str:
     """
     uri = os.environ.get("ECS_CONTAINER_METADATA_URI_V4") \
         or os.environ.get("ECS_CONTAINER_METADATA_URI")
+    # The ECS agent sets an http:// link-local URL; refuse anything else
+    # (file://, ftp://, ...) before opening it.
+    if uri and not uri.lower().startswith(("http://", "https://")):
+        print(f"build_task: ignoring non-http task metadata URI {uri!r}",
+              file=sys.stderr)
+        uri = ""
     if uri:
         try:
             import json
             import urllib.request
-            with urllib.request.urlopen(f"{uri}/task", timeout=2) as resp:
+            with urllib.request.urlopen(f"{uri}/task", timeout=2) as resp:  # nosec B310 (scheme checked above)
                 meta = json.loads(resp.read().decode("utf-8"))
             arn = meta.get("TaskARN") or ""
             if arn:
