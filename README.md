@@ -207,6 +207,10 @@ To deploy from CodeBuild instead of a workstation, point a project of its own (`
 
 [`INSTALL.md`](INSTALL.md) covers installing cvc5 and kiro-cli, the `uv` Python environment, building a theory from the command line, and running the chatbot locally.
 
+### Security checks (cdk-nag)
+
+Every `cdk synth` and `cdk deploy` runs [cdk-nag](https://github.com/cdklabs/cdk-nag)'s AWS Solutions rules over the stack, and an unsuppressed finding fails it. The findings this sample accepts are suppressed in [`cdk/lib/nag-suppressions.ts`](cdk/lib/nag-suppressions.ts), each with its reason and what a production deployment should do instead. They are: no WAF, geo restriction or access logs on CloudFront, the ALB or S3; no VPC flow logs, Container Insights or DynamoDB point-in-time recovery; HTTP from CloudFront to the ALB (no custom domain or certificate) and an ALB open to the internet; no Cognito MFA or threat protection; and the IAM wildcards CDK grants and Bedrock cross-region inference need. The synth writes the full report to `cdk/cdk.out/AwsSolutions-ProvablyCorrectChatbotStack-NagReport.csv`.
+
 ### Removing the stack
 
 `cdk destroy ProvablyCorrectChatbotStack` deletes everything the stack created, data included. As a sample, the stack sets `RemovalPolicy.DESTROY` on the Cognito user pool (and its users), the S3 bucket (emptied first, `autoDeleteObjects`: every source document and built theory), both DynamoDB tables (theory and job records) and both CloudWatch log groups. For anything you want to keep, change those to `RemovalPolicy.RETAIN` (and drop `autoDeleteObjects`) in `cdk/lib/chatbot-stack.ts` before deploying.
@@ -237,6 +241,9 @@ CloudFront cannot reach the load balancer. Check VPC Block Public Access first (
 
 **`npm ci` fails with `Missing: yaml@... from lock file`.**
 `frontend/package-lock.json` was written by npm 11; npm 10 dedupes differently. Use npm 11 (`npx -y npm@11 ci`). The Docker build pins npm 11 for this reason.
+
+**`cdk synth` or `cdk deploy` fails with `[Error at /ProvablyCorrectChatbotStack/...] AwsSolutions-...`.**
+A change to the stack added a resource or permission that cdk-nag flags and nothing suppresses. Fix it, or, if it is acceptable, add a suppression with its reason to [`cdk/lib/nag-suppressions.ts`](cdk/lib/nag-suppressions.ts) on that resource's path (the error names it). For an `AwsSolutions-IAM5` wildcard, list the exact `Action::` or `Resource::` text from the error in `appliesTo`, so other wildcards on the same policy are still checked.
 
 **`cdk deploy` fails creating the user pool domain: `Domain already associated with another user pool`.**
 The Hosted UI prefix `provably-correct-chatbot-<account>` is taken in this account and region, usually by an earlier copy of this stack. Delete that stack, or change `NAME_PREFIX` in [`cdk/lib/chatbot-stack.ts`](cdk/lib/chatbot-stack.ts).

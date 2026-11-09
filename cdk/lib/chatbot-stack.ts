@@ -4,6 +4,7 @@
 import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as path from 'path';
+import { addNagSuppressions } from './nag-suppressions';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as ecsPatterns from 'aws-cdk-lib/aws-ecs-patterns';
@@ -568,5 +569,8 @@ export class ChatbotStack extends cdk.Stack {
         `${userPoolDomain.domainName}.auth.${this.region}.amazoncognito.com`,
       description: 'Cognito Hosted UI domain',
     });
+
+    // cdk-nag: the findings this sample accepts, each with its reason.
+    addNagSuppressions(this);
   }
 }

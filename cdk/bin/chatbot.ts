@@ -3,9 +3,14 @@
 // SPDX-License-Identifier: MIT-0
 import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
+import { AwsSolutionsChecks } from 'cdk-nag';
 import { ChatbotStack } from '../lib/chatbot-stack';
 
 const app = new cdk.App();
+// cdk-nag's AWS Solutions rules run on every synth and deploy: an
+// unsuppressed finding fails it. Each suppression in the stack carries the
+// reason it is acceptable for this sample (see lib/nag-suppressions.ts).
+cdk.Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
 
 // Region must have Bedrock access to the model IDs in globals.py
 // (Claude Opus 4.5 / Haiku 4.5). us-east-1 is the default used by the project.
