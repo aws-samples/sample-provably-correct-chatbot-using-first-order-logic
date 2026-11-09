@@ -965,7 +965,8 @@
    is a left border plus the printed status, never colour alone. */
 .unit-status-pending { --unit-color: #b8bfc6; }
 .unit-status-queued { --unit-color: var(--color-status-queued); }
-.unit-status-running { --unit-color: var(--color-status-running); }
+.unit-status-running,
+.unit-status-post-processing { --unit-color: var(--color-status-running); }
 .unit-status-succeeded { --unit-color: var(--color-status-ready); }
 .unit-status-failed { --unit-color: var(--color-status-failed); }
 .unit-status-stopped { --unit-color: var(--color-status-cancelled); }

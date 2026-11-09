@@ -172,6 +172,21 @@ test('a running build whose job ended is shown as stopped', () => {
   expect(buildStatus(STATE, JOB)).toBe('succeeded');
 });
 
+test('a finished build follows its job through post-processing and failure', () => {
+  expect(buildStatus(STATE, { ...JOB, status: 'running' })).toBe('post-processing');
+  expect(buildStatus(STATE, { ...JOB, status: 'failed' })).toBe('failed');
+  expect(buildStatus(STATE, { ...JOB, status: 'cancelled' })).toBe('stopped');
+});
+
+test('while the job post-processes, the summary says so', async () => {
+  mockFetch({ '/introspection': { ...INTROSPECTION, job: { ...JOB, status: 'running' } } });
+  render(<JobIntrospectionTab jobs={[{ ...JOB, status: 'running' }]} jobId="job-1" />);
+  const summary = await screen.findByRole('region', { name: 'Build summary' });
+  expect(within(summary).getByText('post-processing')).toBeInTheDocument();
+  expect(within(summary).queryByText('succeeded')).not.toBeInTheDocument();
+  expect(within(summary).getByText('Post-processing')).toHaveAttribute('aria-current', 'step');
+});
+
 test('finished phases show how long they took', async () => {
   const timed = {
     ...STATE,

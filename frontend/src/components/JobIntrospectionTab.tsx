@@ -68,7 +68,13 @@ function jobLabel(j: Job): string {
  * "stopped".
  */
 export function buildStatus(state: IntrospectionState, job: Job): string {
-  if (state.status === 'running' && !isLive(job)) return 'stopped';
+  if (state.status === 'running') return isLive(job) ? 'running' : 'stopped';
+  // The formalizer has finished, but the job runs on through post-processing
+  // (suggested questions, storing the theory). Follow the job, so this tab
+  // never says "succeeded" while the Jobs tab still says "running".
+  if (isLive(job)) return 'post-processing';
+  if (job.status === 'failed') return 'failed';
+  if (job.status === 'cancelled') return 'stopped';
   return state.status;
 }
 
@@ -221,6 +227,7 @@ function BuildSummary({
   nowSecs: number;
 }) {
   const status = buildStatus(state, job);
+  const postProcessing = status === 'post-processing';
   const current = PHASES.findIndex((p) => p.key === state.phase);
   const elapsed =
     state.started_at != null
@@ -238,8 +245,10 @@ function BuildSummary({
         <span className={`status-pill unit-status-${status}`}>{status}</span>
         <ol className="build-phases" aria-label="Build phases">
           {PHASES.map((p, i) => {
-            const done = i < current || state.phase === 'done';
-            const here = i === current && state.phase !== 'done';
+            // While post-processing, the last step is the current one.
+            const last = p.key === 'done';
+            const done = i < current || (state.phase === 'done' && !(last && postProcessing));
+            const here = (i === current && state.phase !== 'done') || (last && postProcessing);
             return (
               <li
                 key={p.key}
@@ -247,7 +256,9 @@ function BuildSummary({
                 aria-current={here ? 'step' : undefined}
               >
                 {p.key === 'done'
-                  ? p.label
+                  ? postProcessing
+                    ? 'Post-processing'
+                    : p.label
                   : phaseLabel(p.label, state.phase_times?.[p.key], dollarsPerCredit)}
               </li>
             );
