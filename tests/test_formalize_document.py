@@ -159,8 +159,8 @@ def test_formalize_document_builds_one_theory_and_saves_it(monkeypatch):
     for e in events:
         if e["type"] in ("phase", "end"):
             assert set(e["spent"]) == {"bedrock_dollars", "kiro_credits"}
-    assert events[2]["n_required"] == 16 and len(events[2]["qs_and_as"]) == 20
-    assert events[-1]["ok"] is True and events[-1]["n_correct"] == 16
+    assert events[2]["n_required"] == 17 and len(events[2]["qs_and_as"]) == 20
+    assert events[-1]["ok"] is True and events[-1]["n_correct"] == 17
 
     # The run file round-trips into what the chatbot loads.
     loaded = af.load_run_result(af.Path(summary["runs_path"]))
