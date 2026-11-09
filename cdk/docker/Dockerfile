@@ -110,5 +110,16 @@ COPY cdk/docker/build_params.py /app/build_params.py
 COPY cdk/docker/build_task.py /app/build_task.py
 
 ENV PYTHONUNBUFFERED=1
+
+# Run as an unprivileged user (the web task and the builder task alike). The
+# image's files stay root-owned and read-only to it; it owns only what the app
+# writes: /app itself (new working files), runs/, sentences/ and theories/.
+# kiro-cli gets a fresh HOME per build under the temp directory
+# (kiro_formalizer), and /tmp is world-writable.
+RUN useradd --system --uid 10001 --create-home --home-dir /home/app --shell /usr/sbin/nologin app \
+    && mkdir -p /app/runs /app/sentences /app/theories \
+    && chown app:app /app /app/runs /app/sentences /app/theories
+USER app
+
 EXPOSE 8000
 CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
