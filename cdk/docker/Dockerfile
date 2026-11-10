@@ -2,14 +2,15 @@
 #
 # Provably-correct chatbot image (web service and builder).
 # Build context = the REPO ROOT (set in cdk/lib/chatbot-stack.ts via fromAsset).
-# Multi-stage: (1) build the React SPA, (2) assemble the Python runtime with
-# cvc5 and serve both the API and the built SPA from one FastAPI app.
+# Multi-stage: (1) build the React SPA with Vite, (2) assemble the Python
+# runtime with cvc5 and serve both the API and the built SPA from one FastAPI app.
 
 # ---------- Stage 1: build the React frontend ----------
-FROM public.ecr.aws/docker/library/node:20-bookworm AS frontend
+# Node 22: Vite 8 needs >=22.12 (or ^20.19) and Vitest 5 needs ^22.12.
+FROM public.ecr.aws/docker/library/node:22-bookworm AS frontend
 WORKDIR /build
 # Pin npm to v11 to match the npm that generated frontend/package-lock.json
-# (lockfileVersion 3). node:20 ships npm 10, which dedupes transitive deps
+# (lockfileVersion 3). node:22 ships npm 10, which dedupes transitive deps
 # differently and makes `npm ci` reject the lock with "Missing: yaml@... from
 # lock file". Keeping the npm major in sync avoids that portability trap.
 RUN npm install -g npm@11
@@ -18,7 +19,7 @@ RUN npm ci
 COPY frontend/ ./
 # Empty base URL => the SPA calls same-origin relative paths (/ask, /subject,
 # /lucky, /api/...), which CloudFront routes to the ALB. See frontend/src/api.ts.
-ENV REACT_APP_API_BASE_URL=""
+ENV VITE_API_BASE_URL=""
 RUN npm run build
 
 # ---------- Stage 2: python runtime ----------

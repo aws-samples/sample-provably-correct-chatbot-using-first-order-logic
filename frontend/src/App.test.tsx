@@ -27,7 +27,7 @@ const READY_THEORY = {
 };
 
 function mockFetch(handlers: Handlers) {
-  return jest.fn((url: string, init?: RequestInit) => {
+  return vi.fn((url: string, init?: RequestInit) => {
     const ok = (data: any) =>
       Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(data) } as Response);
 
@@ -67,7 +67,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 // Start on an open chat tab for the New Zealand theory (t1).

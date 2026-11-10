@@ -1,6 +1,7 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 
+import type { Mock } from 'vitest';
 import React from 'react';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -20,7 +21,7 @@ type Reply = { theory_id: string; theory_name: string; answer: string; verified:
 
 function mockAsk(replies: (ids: string[]) => Reply[]) {
   const calls: { theory_ids: string[]; text: string }[] = [];
-  global.fetch = jest.fn((input: RequestInfo | URL, init?: RequestInit) => {
+  global.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     const ok = (body: unknown) =>
       Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) } as Response);
@@ -31,12 +32,12 @@ function mockAsk(replies: (ids: string[]) => Reply[]) {
     }
     if (url.includes('/lucky-questions')) return ok({ questions: [] });
     return ok({});
-  }) as jest.Mock;
+  }) as Mock;
   return calls;
 }
 
 beforeEach(() => localStorage.clear());
-afterEach(() => jest.restoreAllMocks());
+afterEach(() => vi.restoreAllMocks());
 
 async function choose(...names: string[]) {
   await userEvent.click(screen.getByRole('button', { name: /^Theories:/ }));

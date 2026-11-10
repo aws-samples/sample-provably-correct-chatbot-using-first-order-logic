@@ -1,6 +1,7 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 
+import type { Mock } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { JobIntrospectionTab, buildStatus, phaseLabel, verifiedLine } from './JobIntrospectionTab';
@@ -74,7 +75,7 @@ const INTROSPECTION: JobIntrospection = {
 };
 
 function mockFetch(routes: Record<string, unknown>) {
-  global.fetch = jest.fn((input: RequestInfo | URL) => {
+  global.fetch = vi.fn((input: RequestInfo | URL) => {
     const url = String(input);
     // Longest matching route wins, so /introspection/logs beats /introspection.
     const key = Object.keys(routes)
@@ -82,10 +83,10 @@ function mockFetch(routes: Record<string, unknown>) {
       .sort((a, b) => b.length - a.length)[0];
     const body = key ? routes[key] : {};
     return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) } as Response);
-  }) as jest.Mock;
+  }) as Mock;
 }
 
-afterEach(() => jest.restoreAllMocks());
+afterEach(() => vi.restoreAllMocks());
 
 test('summarizes the build: status, phases, counts and cost', async () => {
   mockFetch({ '/introspection': INTROSPECTION });
@@ -150,7 +151,7 @@ test('the logs view reads the whole build log and offers a download', async () =
     'href',
     expect.stringContaining('/api/jobs/job-1/introspection/logs.txt')
   );
-  const calls = (global.fetch as jest.Mock).mock.calls.map((c) => String(c[0]));
+  const calls = (global.fetch as Mock).mock.calls.map((c) => String(c[0]));
   expect(calls.some((u) => u.includes('/introspection/logs?head=500&tail=1500'))).toBe(true);
 });
 

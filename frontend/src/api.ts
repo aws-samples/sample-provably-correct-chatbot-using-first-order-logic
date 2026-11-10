@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT-0
 
 // API client for the chatbot backend.
-// Base URL comes from REACT_APP_API_BASE_URL, defaulting to localhost (empty in
+// Base URL comes from VITE_API_BASE_URL, defaulting to localhost (empty in
 // the deployed image, so calls are same-origin).
 
 import {
@@ -19,7 +19,7 @@ import {
 } from './types';
 
 export const API_BASE_URL =
-  process.env.REACT_APP_API_BASE_URL ?? 'http://localhost:8000';
+  import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
 
 export interface SubjectResponse {
   title: string;

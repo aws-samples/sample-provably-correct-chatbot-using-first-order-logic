@@ -45,7 +45,7 @@ For example: `npx cdk deploy ProvablyCorrectChatbotStack -c kiroModel=claude-son
 
 `docker/Dockerfile` is built from the **repo root**, because the backend
 imports the root modules (`auto_formalizer`, `kiro_formalizer`, `utils`,
-`globals`, `params`, `chatbot_backend`). It builds the React SPA, installs the
+`globals`, `params`, `chatbot_backend`). It builds the React SPA with Vite, installs the
 cvc5 arm64 static binary, a pinned kiro-cli and the Python dependencies, and
 places the web-service modules (`docker/*.py`) beside the root modules in
 `/app`. The web task runs `uvicorn server:app`; the builder runs

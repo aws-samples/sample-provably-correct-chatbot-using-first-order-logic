@@ -1,6 +1,7 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 
+import type { Mock } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import App from './App';
@@ -19,7 +20,7 @@ const THEORIES = [{
 beforeEach(() => {
   localStorage.clear();
   localStorage.setItem('chatbot.activeTab', 'jobs');
-  global.fetch = jest.fn((input: RequestInfo | URL) => {
+  global.fetch = vi.fn((input: RequestInfo | URL) => {
     const url = String(input);
     const body = url.endsWith('/api/jobs')
       ? { jobs: JOBS }
@@ -29,7 +30,7 @@ beforeEach(() => {
           ? { job: JOBS[0], available: false, state: null, note: 'Nothing recorded.' }
           : {};
     return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) } as Response);
-  }) as jest.Mock;
+  }) as Mock;
 });
 
 const tabNames = () => screen.getAllByRole('tab').map((t) => t.textContent);

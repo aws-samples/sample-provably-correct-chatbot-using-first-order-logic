@@ -1,13 +1,14 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 
+import type { Mock } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BuildParamsModal, validateDraft } from './BuildParamsModal';
 import { TheoriesTab } from './TheoriesTab';
 import { BuildParamSpec } from '../types';
 
-const LINKS = { onOpenChat: jest.fn(), onOpenJob: jest.fn() };
+const LINKS = { onOpenChat: vi.fn(), onOpenJob: vi.fn() };
 
 const SPECS: BuildParamSpec[] = [
   { key: 'qa_window_sentences', group: 'Test set', type: 'int', label: 'Question window (sentences)',
@@ -23,7 +24,7 @@ const SPECS: BuildParamSpec[] = [
 type Call = { url: string; init?: RequestInit };
 
 function mockFetch(calls: Call[], create: { status: number; body: unknown } = { status: 200, body: {} }) {
-  global.fetch = jest.fn((input: RequestInfo | URL, init?: RequestInit) => {
+  global.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     calls.push({ url, init });
     const reply = (status: number, body: unknown) =>
@@ -32,14 +33,14 @@ function mockFetch(calls: Call[], create: { status: number; body: unknown } = { 
     if (url.endsWith('/api/sample-patients')) return reply(200, { sample_patients: [] });
     if (url.endsWith('/api/theories') || url.includes('/rebuild')) return reply(create.status, create.body);
     return reply(200, {});
-  }) as jest.Mock;
+  }) as Mock;
 }
 
-afterEach(() => jest.restoreAllMocks());
+afterEach(() => vi.restoreAllMocks());
 
 test('the form is pre-filled with the defaults', async () => {
   mockFetch([]);
-  render(<BuildParamsModal title="Build" onConfirm={jest.fn()} onClose={jest.fn()} />);
+  render(<BuildParamsModal title="Build" onConfirm={vi.fn()} onClose={vi.fn()} />);
   expect(await screen.findByLabelText('Question window (sentences)')).toHaveValue(10);
   expect(screen.getByLabelText('Required correct ratio')).toHaveValue(0.8);
   expect(screen.getByLabelText('kiro-cli model')).toHaveValue('');
@@ -50,8 +51,8 @@ test('the form is pre-filled with the defaults', async () => {
 
 test('confirm sends the edited values; reset restores defaults', async () => {
   mockFetch([]);
-  const onConfirm = jest.fn(() => Promise.resolve());
-  render(<BuildParamsModal title="Build" onConfirm={onConfirm} onClose={jest.fn()} />);
+  const onConfirm = vi.fn(() => Promise.resolve());
+  render(<BuildParamsModal title="Build" onConfirm={onConfirm} onClose={vi.fn()} />);
   const window = await screen.findByLabelText('Question window (sentences)');
   fireEvent.change(window, { target: { value: '6' } });
   fireEvent.click(screen.getByRole('button', { name: 'Reset to defaults' }));
@@ -67,8 +68,8 @@ test('confirm sends the edited values; reset restores defaults', async () => {
 
 test('invalid values block submit and are explained', async () => {
   mockFetch([]);
-  const onConfirm = jest.fn(() => Promise.resolve());
-  render(<BuildParamsModal title="Build" onConfirm={onConfirm} onClose={jest.fn()} />);
+  const onConfirm = vi.fn(() => Promise.resolve());
+  render(<BuildParamsModal title="Build" onConfirm={onConfirm} onClose={vi.fn()} />);
   fireEvent.change(await screen.findByLabelText('Sessions'), { target: { value: '0' } });
   expect(await screen.findByRole('alert')).toHaveTextContent('Must be between 1 and 10.');
   fireEvent.click(screen.getByRole('button', { name: 'Start build' }));
@@ -77,8 +78,8 @@ test('invalid values block submit and are explained', async () => {
 
 test('a server refusal is shown in the dialog', async () => {
   mockFetch([]);
-  const onConfirm = jest.fn(() => Promise.reject(new Error('Sessions must be between 1 and 10')));
-  render(<BuildParamsModal title="Build" onConfirm={onConfirm} onClose={jest.fn()} />);
+  const onConfirm = vi.fn(() => Promise.reject(new Error('Sessions must be between 1 and 10')));
+  render(<BuildParamsModal title="Build" onConfirm={onConfirm} onClose={vi.fn()} />);
   await screen.findByLabelText('Sessions');
   fireEvent.click(screen.getByRole('button', { name: 'Start build' }));
   expect(await screen.findByText('Sessions must be between 1 and 10')).toBeInTheDocument();
@@ -96,7 +97,7 @@ test('validateDraft checks bounds and integers', () => {
 test('Build theory opens the dialog and creates with the chosen parameters', async () => {
   const calls: Call[] = [];
   mockFetch(calls, { status: 200, body: { theory: {}, job: {} } });
-  const onChanged = jest.fn();
+  const onChanged = vi.fn();
   render(<TheoriesTab {...LINKS} theories={[]} jobs={[]} onChanged={onChanged} />);
   fireEvent.click(screen.getByRole('button', { name: '+ Add theory' }));
   fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Tides' } });
@@ -119,7 +120,7 @@ test('Build theory opens the dialog and creates with the chosen parameters', asy
 test('a name the server says is taken closes the dialog and asks for another', async () => {
   const detail = 'A theory named "Tides" already exists. Choose a different name.';
   mockFetch([], { status: 409, body: { detail } });
-  render(<TheoriesTab {...LINKS} theories={[]} jobs={[]} onChanged={jest.fn()} />);
+  render(<TheoriesTab {...LINKS} theories={[]} jobs={[]} onChanged={vi.fn()} />);
   fireEvent.click(screen.getByRole('button', { name: '+ Add theory' }));
   fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Tides' } });
   fireEvent.change(screen.getByPlaceholderText('Paste the source document here…'), {
@@ -153,7 +154,7 @@ test('a rebuild starts from the most recent job\u2019s parameters', async () => 
                                kiro_model: 'm1', sentences_per_chunk: 4 }),
     job('j3', 1_700_200_000, null), // no recorded params: ignored
   ];
-  render(<TheoriesTab {...LINKS} theories={[THEORY as any]} jobs={jobs as any} onChanged={jest.fn()} />);
+  render(<TheoriesTab {...LINKS} theories={[THEORY as any]} jobs={jobs as any} onChanged={vi.fn()} />);
   fireEvent.click(screen.getByRole('button', { name: 'Rebuild' }));
   expect(await screen.findByLabelText('Question window (sentences)')).toHaveValue(9);
   expect(screen.getByLabelText('Required correct ratio')).toHaveValue(0.7);
@@ -175,7 +176,7 @@ test('a rebuild starts from the most recent job\u2019s parameters', async () => 
 
 test('a rebuild with no recorded parameters starts from the defaults', async () => {
   mockFetch([]);
-  render(<TheoriesTab {...LINKS} theories={[THEORY as any]} jobs={[job('j1', 1, null)] as any} onChanged={jest.fn()} />);
+  render(<TheoriesTab {...LINKS} theories={[THEORY as any]} jobs={[job('j1', 1, null)] as any} onChanged={vi.fn()} />);
   fireEvent.click(screen.getByRole('button', { name: 'Rebuild' }));
   expect(await screen.findByLabelText('Question window (sentences)')).toHaveValue(10);
   expect(screen.getByRole('button', { name: 'Reset to defaults' })).toBeInTheDocument();

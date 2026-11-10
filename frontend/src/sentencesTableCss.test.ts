@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT-0
 
 // The sentences table must fit its panel: its text columns may not be kept on
-// one line. Jest stubs CSS imports, so apply the real stylesheet to a table
+// one line. Vitest stubs CSS imports, so apply the real stylesheet to a table
 // in the DOM and read the cascaded values. (A later, equally specific
 // .unit-qas-table last-column rule with white-space: nowrap once won the
 // cascade and made the table scroll sideways.)

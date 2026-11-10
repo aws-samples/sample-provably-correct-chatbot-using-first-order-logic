@@ -1,6 +1,7 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 
+import type { Mock } from 'vitest';
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';
 import { ArtifactModal } from './ArtifactModal';
@@ -11,15 +12,15 @@ const THEORY = {
 };
 
 function mockTheory(detail: Record<string, unknown>) {
-  global.fetch = jest.fn(() =>
+  global.fetch = vi.fn(() =>
     Promise.resolve({
       ok: true, status: 200,
       json: () => Promise.resolve({ ...THEORY, source_document: '', computed_theory: '', ...detail }),
     } as Response)
-  ) as jest.Mock;
+  ) as Mock;
 }
 
-afterEach(() => jest.restoreAllMocks());
+afterEach(() => vi.restoreAllMocks());
 
 test('the Q&A artifact shows each question with its answer', async () => {
   mockTheory({
@@ -29,7 +30,7 @@ test('the Q&A artifact shows each question with its answer', async () => {
       { question: 'Who named it?', answer: null, source: 'variation' },
     ],
   });
-  render(<ArtifactModal theory={THEORY} kind="qas" onClose={jest.fn()} />);
+  render(<ArtifactModal theory={THEORY} kind="qas" onClose={vi.fn()} />);
   const table = await screen.findByRole('table', { name: 'Verified questions and their answers' });
   const rows = within(table).getAllByRole('row').slice(1);
   expect(rows[0]).toHaveTextContent('When was the cape renamed?In 1963.');
@@ -42,7 +43,7 @@ test('the Q&A artifact shows each question with its answer', async () => {
 
 test('without answers from the server it falls back to the question list', async () => {
   mockTheory({ suggested_questions: ['Only a question?'] });
-  render(<ArtifactModal theory={THEORY} kind="qas" onClose={jest.fn()} />);
+  render(<ArtifactModal theory={THEORY} kind="qas" onClose={vi.fn()} />);
   expect(await screen.findByText('Only a question?')).toBeInTheDocument();
   expect(screen.queryByRole('table')).not.toBeInTheDocument();
 });

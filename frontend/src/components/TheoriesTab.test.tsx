@@ -1,6 +1,7 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 
+import type { Mock } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import { TheoriesTab } from './TheoriesTab';
@@ -18,15 +19,15 @@ const THEORIES = [
   theory('d', 'Tides', 'cancelled'),
 ];
 
-const LINKS = { onOpenChat: jest.fn(), onOpenJob: jest.fn() };
+const LINKS = { onOpenChat: vi.fn(), onOpenJob: vi.fn() };
 
 beforeEach(() => {
   LINKS.onOpenChat.mockClear();
   LINKS.onOpenJob.mockClear();
   localStorage.clear();
-  global.fetch = jest.fn(() =>
+  global.fetch = vi.fn(() =>
     Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) } as Response)
-  ) as jest.Mock;
+  ) as Mock;
 });
 
 const rowNames = () =>
@@ -35,25 +36,25 @@ const rowOf = (name: string) =>
   screen.getAllByRole('row').find((r) => r.querySelector('.theory-name-text')?.textContent === name)!;
 
 test('only ready and building theories are listed by default', () => {
-  render(<TheoriesTab {...LINKS} theories={THEORIES} jobs={[]} onChanged={jest.fn()} />);
+  render(<TheoriesTab {...LINKS} theories={THEORIES} jobs={[]} onChanged={vi.fn()} />);
   expect(rowNames()).toEqual(['Photosynthesis', 'Cape Canaveral']);
   expect(screen.getByLabelText('Show failed and cancelled (2)')).not.toBeChecked();
 });
 
 test('the toggle reveals failed and cancelled theories with Rebuild, and is remembered', () => {
-  const { unmount } = render(<TheoriesTab {...LINKS} theories={THEORIES} jobs={[]} onChanged={jest.fn()} />);
+  const { unmount } = render(<TheoriesTab {...LINKS} theories={THEORIES} jobs={[]} onChanged={vi.fn()} />);
   fireEvent.click(screen.getByLabelText('Show failed and cancelled (2)'));
   expect(rowNames()).toEqual(['Photosynthesis', 'Cape Canaveral', 'Hypertension', 'Tides']);
   const failedRow = screen.getAllByRole('row').find((r) => r.textContent?.includes('Hypertension'))!;
   expect(within(failedRow).getByRole('button', { name: 'Rebuild' })).toBeEnabled();
   unmount();
-  render(<TheoriesTab {...LINKS} theories={THEORIES} jobs={[]} onChanged={jest.fn()} />);
+  render(<TheoriesTab {...LINKS} theories={THEORIES} jobs={[]} onChanged={vi.fn()} />);
   expect(screen.getByLabelText('Show failed and cancelled (2)')).toBeChecked();
 });
 
 test('explains when every theory is hidden', () => {
   render(
-    <TheoriesTab {...LINKS} theories={[theory('c', 'Hypertension', 'failed')]} jobs={[]} onChanged={jest.fn()} />
+    <TheoriesTab {...LINKS} theories={[theory('c', 'Hypertension', 'failed')]} jobs={[]} onChanged={vi.fn()} />
   );
   expect(screen.getByText(/No ready or building theories\. 1 failed or cancelled theory is hidden/))
     .toBeInTheDocument();
@@ -66,28 +67,28 @@ test('a building theory shows its current step, then post-processing', () => {
   });
   const building = { ...theory('b', 'Cape Canaveral', 'building'), job_id: 'j' };
   const { rerender } = render(
-    <TheoriesTab {...LINKS} theories={[building]} jobs={[job('generating test set')]} onChanged={jest.fn()} />
+    <TheoriesTab {...LINKS} theories={[building]} jobs={[job('generating test set')]} onChanged={vi.fn()} />
   );
   expect(screen.getByText('building — test set')).toBeInTheDocument();
   rerender(
     <TheoriesTab {...LINKS} theories={[building]} jobs={[job('kiro-cli session 2 (fixing after verification)')]}
-      onChanged={jest.fn()} />
+      onChanged={vi.fn()} />
   );
   expect(screen.getByText('building — session 2')).toBeInTheDocument();
-  rerender(<TheoriesTab {...LINKS} theories={[building]} jobs={[job('generating suggested questions')]} onChanged={jest.fn()} />);
+  rerender(<TheoriesTab {...LINKS} theories={[building]} jobs={[job('generating suggested questions')]} onChanged={vi.fn()} />);
   expect(screen.getByText('building — suggested questions')).toBeInTheDocument();
-  rerender(<TheoriesTab {...LINKS} theories={[building]} jobs={[job('post-processing')]} onChanged={jest.fn()} />);
+  rerender(<TheoriesTab {...LINKS} theories={[building]} jobs={[job('post-processing')]} onChanged={vi.fn()} />);
   expect(screen.getByText('building — post-processing')).toBeInTheDocument();
 });
 
 test('there is no "Available theories" header', () => {
-  render(<TheoriesTab {...LINKS} theories={THEORIES} jobs={[]} onChanged={jest.fn()} />);
+  render(<TheoriesTab {...LINKS} theories={THEORIES} jobs={[]} onChanged={vi.fn()} />);
   expect(screen.queryByText('Available theories')).not.toBeInTheDocument();
 });
 
 test('each row links to its Job Details tab, and ready theories to a chat tab', () => {
   const withJobs = THEORIES.map((t) => ({ ...t, job_id: `job-${t.id}` }));
-  render(<TheoriesTab {...LINKS} theories={withJobs} jobs={[]} onChanged={jest.fn()} />);
+  render(<TheoriesTab {...LINKS} theories={withJobs} jobs={[]} onChanged={vi.fn()} />);
   fireEvent.click(within(rowOf('Cape Canaveral')).getByRole('button', { name: 'Job details' }));
   expect(LINKS.onOpenJob).toHaveBeenCalledWith('job-b');
   expect(within(rowOf('Cape Canaveral')).queryByRole('button', { name: 'Chat' })).toBeNull();
@@ -96,10 +97,10 @@ test('each row links to its Job Details tab, and ready theories to a chat tab', 
 });
 
 const patchCalls = () =>
-  (global.fetch as jest.Mock).mock.calls.filter(([, init]) => init?.method === 'PATCH');
+  (global.fetch as Mock).mock.calls.filter(([, init]) => init?.method === 'PATCH');
 
 test('the pencil renames a theory on Enter', async () => {
-  const onChanged = jest.fn();
+  const onChanged = vi.fn();
   render(<TheoriesTab {...LINKS} theories={THEORIES} jobs={[]} onChanged={onChanged} />);
   fireEvent.click(screen.getByRole('button', { name: 'Rename Photosynthesis' }));
   const input = screen.getByLabelText('New name for Photosynthesis');
@@ -113,7 +114,7 @@ test('the pencil renames a theory on Enter', async () => {
 });
 
 test('a rename to a taken name is refused, and Escape cancels', () => {
-  render(<TheoriesTab {...LINKS} theories={THEORIES} jobs={[]} onChanged={jest.fn()} />);
+  render(<TheoriesTab {...LINKS} theories={THEORIES} jobs={[]} onChanged={vi.fn()} />);
   fireEvent.click(screen.getByRole('button', { name: 'Rename Photosynthesis' }));
   const input = screen.getByLabelText('New name for Photosynthesis');
   fireEvent.change(input, { target: { value: 'cape canaveral' } });
@@ -126,7 +127,7 @@ test('a rename to a taken name is refused, and Escape cancels', () => {
 });
 
 test('a new theory whose name is taken must be renamed before building', () => {
-  render(<TheoriesTab {...LINKS} theories={THEORIES} jobs={[]} onChanged={jest.fn()} />);
+  render(<TheoriesTab {...LINKS} theories={THEORIES} jobs={[]} onChanged={vi.fn()} />);
   fireEvent.click(screen.getByRole('button', { name: '+ Add theory' }));
   fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'TIDES' } });
   fireEvent.change(screen.getByPlaceholderText('Paste the source document here…'), {

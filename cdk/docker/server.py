@@ -47,9 +47,9 @@ _loaded_theory_id: str = ""
 _suggested_questions: list = []
 
 # CloudFront serves the SPA from the same origin as the API, so the deployed
-# app needs no CORS. For a local `npm start` dev server on another port, set
+# app needs no CORS. For a local `npm run dev` server on another port, set
 # CORS_ALLOW_ORIGINS to its origin(s), comma separated (e.g.
-# http://localhost:3000). Unset (the default, and in the stack): no CORS.
+# http://localhost:5173). Unset (the default, and in the stack): no CORS.
 _cors_origins = [o.strip() for o in os.environ.get("CORS_ALLOW_ORIGINS", "").split(",")
                  if o.strip()]
 if _cors_origins:

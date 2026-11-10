@@ -1,6 +1,7 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 
+import type { Mock } from 'vitest';
 import React from 'react';
 import { act, render, screen } from '@testing-library/react';
 import { KIRO_POLL_MS, KiroLiveView, classifyKiroLine } from './KiroLiveView';
@@ -9,18 +10,18 @@ type Reply = { lines: string[]; cursor: string | null; omitted?: number; note?: 
 
 function mockKiro(replies: Reply[]) {
   const urls: string[] = [];
-  global.fetch = jest.fn((input: RequestInfo | URL) => {
+  global.fetch = vi.fn((input: RequestInfo | URL) => {
     urls.push(String(input));
     const r = replies.shift() ?? { lines: [], cursor: null };
     const body = { omitted: 0, incomplete: false, note: null, ...r };
     return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) } as Response);
-  }) as jest.Mock;
+  }) as Mock;
   return urls;
 }
 
 afterEach(() => {
-  jest.useRealTimers();
-  jest.restoreAllMocks();
+  vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 test('classifies session starts, harness verdicts and agent output', () => {
@@ -50,7 +51,9 @@ test('shows the transcript with numbered session dividers', async () => {
 });
 
 test('a running build appends only new lines, sending the cursor back', async () => {
-  jest.useFakeTimers();
+  // findBy* polls with setTimeout; Testing Library only drives fake timers
+  // under Jest, so let the fake clock follow real time as well.
+  vi.useFakeTimers({ shouldAdvanceTime: true });
   const urls = mockKiro([
     { cursor: '100:e0', lines: ['kc: first'] },
     { cursor: '200:e1', lines: ['kc: second'] },
@@ -58,7 +61,7 @@ test('a running build appends only new lines, sending the cursor back', async ()
   render(<KiroLiveView jobId="job-1" live />);
   expect(await screen.findByText('first')).toBeInTheDocument();
   await act(async () => {
-    jest.advanceTimersByTime(KIRO_POLL_MS);
+    vi.advanceTimersByTime(KIRO_POLL_MS);
   });
   expect(await screen.findByText('second')).toBeInTheDocument();
   // Nothing repeated.

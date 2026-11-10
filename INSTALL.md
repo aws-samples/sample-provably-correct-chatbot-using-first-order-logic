@@ -98,14 +98,14 @@ stack sets it), in which case it refuses to start. In two terminals:
 cp cdk/docker/{server,auth,store,job_introspection,build_params,build_task}.py .
 # The dev server below is another origin, so allow it (the deployed app is
 # same-origin and enables no CORS).
-CORS_ALLOW_ORIGINS=http://localhost:3000 uv run uvicorn server:app --port 8000
+CORS_ALLOW_ORIGINS=http://localhost:5173 uv run uvicorn server:app --port 8000
 ```
 
 ```bash
-# 2. the React dev server (needs npm 11 for its lockfile)
+# 2. the frontend dev server on http://localhost:5173 (needs npm 11 for its lockfile)
 cd frontend
 npx -y npm@11 ci
-npm start
+npm run dev
 ```
 
 ## Tests
@@ -113,7 +113,7 @@ npm start
 ```bash
 uv run pytest tests                              # formalizer, kiro engine, process cleanup
 (cd cdk/docker && uv run pytest tests)           # web service, builder, introspection
-(cd frontend && CI=true npm test -- --watchAll=false)
+(cd frontend && npm test)                         # Vitest, runs once
 ```
 
 The web-service tests need its extra dependencies:
