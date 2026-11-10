@@ -152,6 +152,15 @@ export class ChatbotStack extends cdk.Stack {
       }));
     };
 
+    // DynamoDB item access on one table, instead of grantReadWriteData.
+    const TABLE_RW = ['dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:Scan'];
+    const tableAccess = (role: iam.IRole, table: dynamodb.ITable, actions: string[]) => {
+      role.addToPrincipalPolicy(new iam.PolicyStatement({
+        actions,
+        resources: [table.tableArn],
+      }));
+    };
+
     // Bedrock InvokeModel for the models the app uses (globals.py): Anthropic
     // Claude, through global.* / us.* cross-region inference profiles, and
     // Titan text embeddings. A cross-region profile is authorized on the
@@ -311,8 +320,11 @@ export class ChatbotStack extends cdk.Stack {
     // deletes a theory's two objects when the theory is deleted.
     theoryBucketAccess(service.taskDefinition.taskRole,
                        ['s3:GetObject', 's3:PutObject', 's3:DeleteObject']);
-    theoriesTable.grantReadWriteData(service.taskDefinition.taskRole);
-    jobsTable.grantReadWriteData(service.taskDefinition.taskRole);
+    // DynamoDB: only the calls store.py makes (get/put/update/scan; theory
+    // records are also deleted). No Query, Batch*, ConditionCheckItem or
+    // DescribeTable; job records are never deleted.
+    tableAccess(service.taskDefinition.taskRole, theoriesTable, [...TABLE_RW, 'dynamodb:DeleteItem']);
+    tableAccess(service.taskDefinition.taskRole, jobsTable, TABLE_RW);
 
     // The job-logs endpoint (store.job_logs) tails this task's own CloudWatch
     // log group to return a job's full pipeline output, so the task role needs
@@ -397,8 +409,9 @@ export class ChatbotStack extends cdk.Stack {
     // The builder reads the source document and writes the theory and its
     // build progress; it never deletes.
     theoryBucketAccess(builderTaskDef.taskRole, ['s3:GetObject', 's3:PutObject']);
-    theoriesTable.grantReadWriteData(builderTaskDef.taskRole);
-    jobsTable.grantReadWriteData(builderTaskDef.taskRole);
+    // The builder updates its job and theory records and never deletes one.
+    tableAccess(builderTaskDef.taskRole, theoriesTable, TABLE_RW);
+    tableAccess(builderTaskDef.taskRole, jobsTable, TABLE_RW);
     // Read the Kiro API key for kiro-cli. Secrets Manager
     // appends a random 6-char suffix to secret ARNs, hence the wildcard. The
     // secret is created out of band (it holds a credential), so it is
@@ -431,15 +444,30 @@ export class ChatbotStack extends cdk.Stack {
         resources: [clusterTasksArn],
         conditions: {
           ArnEquals: { 'ecs:cluster': cluster.clusterArn },
+          // Only tags applied by RunTask itself: it cannot retag existing tasks.
+          StringEquals: { 'ecs:CreateAction': 'RunTask' },
         },
       })
     );
     service.taskDefinition.taskRole.addToPrincipalPolicy(
       new iam.PolicyStatement({
-        // StopTask (kill-a-job) is scoped by cluster via the condition below;
-        // task ARNs are not known at synth time, so the resource is the task
-        // wildcard in this cluster.
-        actions: ['ecs:StopTask', 'ecs:DescribeTasks'],
+        // StopTask (kill-a-job) only on builder tasks: every one is launched
+        // with the chatbot:job tag (store._dispatch_build) and the web
+        // service's own tasks are not, so the web task cannot stop itself or
+        // other untagged tasks in the cluster.
+        actions: ['ecs:StopTask'],
+        resources: [clusterTasksArn],
+        conditions: {
+          ArnEquals: { 'ecs:cluster': cluster.clusterArn },
+          Null: { 'aws:ResourceTag/chatbot:job': 'false' },
+        },
+      })
+    );
+    service.taskDefinition.taskRole.addToPrincipalPolicy(
+      new iam.PolicyStatement({
+        // DescribeTasks (read-only reconciliation of builder jobs) stays on
+        // the cluster's tasks: describe actions take no tag conditions.
+        actions: ['ecs:DescribeTasks'],
         resources: [clusterTasksArn],
         conditions: {
           ArnEquals: { 'ecs:cluster': cluster.clusterArn },
@@ -473,6 +501,18 @@ export class ChatbotStack extends cdk.Stack {
     // reads these). Added to the running container's env via an escape hatch so
     // it does not disturb the taskImageOptions.environment block above.
     const webContainer = service.taskDefinition.defaultContainer!;
+    // An ECS health check on the web container, as well as the ALB's: ECS
+    // replaces a task whose server has hung even if the ALB has not yet
+    // drained it. The pattern's taskImageOptions has no healthCheck, hence
+    // the override (the web container is the task definition's only one).
+    (service.taskDefinition.node.defaultChild as ecs.CfnTaskDefinition).addPropertyOverride(
+      'ContainerDefinitions.0.HealthCheck', {
+        Command: ['CMD-SHELL', 'curl -fsS http://localhost:8000/healthz || exit 1'],
+        Interval: 30,
+        Timeout: 5,
+        Retries: 3,
+        StartPeriod: 60,
+      });
     webContainer.addEnvironment('BUILDER_TASK_DEF', builderTaskDef.taskDefinitionArn);
     webContainer.addEnvironment('BUILDER_CLUSTER', cluster.clusterArn);
     webContainer.addEnvironment('BUILDER_SUBNETS', builderSubnets.subnetIds.join(','));
