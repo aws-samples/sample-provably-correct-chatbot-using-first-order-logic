@@ -465,3 +465,7 @@ Each `Sentence` subclass has its own YAML tag (`!TextSentence`,
 `!FHIRsentence`, `!MDMsentence`) so sentences serialize with their
 type-specific context (standalone text for text/MDM, `patient_entries` for
 FHIR) in the run file.
+
+## License
+
+This sample is licensed under the MIT-0 License (MIT No Attribution). See the [LICENSE](LICENSE) file. Every source file carries the matching `SPDX-License-Identifier: MIT-0` header.
