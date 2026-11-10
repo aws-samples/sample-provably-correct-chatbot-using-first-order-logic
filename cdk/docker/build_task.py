@@ -102,8 +102,9 @@ def main() -> int:
                               error=f"source document unreadable: {ex}",
                               finished_at=store._now())
             store._update_theory(theory_id, status="failed")
-        except Exception:  # pylint: disable=broad-except
-            pass
+        except Exception as rec_ex:  # pylint: disable=broad-except
+            print(f"build_task: could not record the failure: {rec_ex}",
+                  file=sys.stderr)
         print(f"build_task: cannot read source {source_key}: {ex}",
               file=sys.stderr)
         return 3
@@ -139,13 +140,17 @@ def _discover_task_arn() -> str:
         try:
             import json
             import urllib.request
-            with urllib.request.urlopen(f"{uri}/task", timeout=2) as resp:  # nosec B310 (scheme checked above)
+            # The URI comes from ECS_CONTAINER_METADATA_URI(_V4), set by the
+            # ECS agent, and only http(s) is allowed (checked above), so
+            # urllib cannot be pointed at file:// or another scheme.
+            with urllib.request.urlopen(f"{uri}/task", timeout=2) as resp:  # nosec B310 # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected
                 meta = json.loads(resp.read().decode("utf-8"))
             arn = meta.get("TaskARN") or ""
             if arn:
                 return arn
-        except Exception:  # pylint: disable=broad-except
-            pass
+        except Exception as ex:  # pylint: disable=broad-except
+            print(f"build_task: task metadata unavailable ({ex}); "
+                  "falling back to BUILD_TASK_ARN", file=sys.stderr)
     return os.environ.get("BUILD_TASK_ARN", "")
 
 

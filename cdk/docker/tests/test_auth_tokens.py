@@ -51,7 +51,7 @@ def keys():
 def token(private, auth, access="access-tok", kid="k1", **overrides):
     now = int(time.time())
     claims = {"sub": "u1", "email": "a@b.c", "aud": CLIENT, "iss": ISSUER,
-              "iat": now, "exp": now + 300, "token_use": "id",
+              "iat": now, "exp": now + 300, "token_use": "id",  # nosec B105 (a JWT claim value, not a password)
               "at_hash": auth._at_hash(access)}
     claims.update(overrides)
     claims = {k: v for k, v in claims.items() if v is not None}
@@ -68,7 +68,7 @@ def test_a_valid_token_verifies(auth, keys):
     ({"aud": "someone-else"}, "access-tok", "(?i)audience"),
     ({"iss": "https://evil.example"}, "access-tok", "issuer"),
     ({"exp": 1}, "access-tok", "expired"),
-    ({"token_use": "access"}, "access-tok", "not an ID token"),
+    ({"token_use": "access"}, "access-tok", "not an ID token"),  # nosec B105 (JWT claim value)
     ({}, "another-access-token", "at_hash"),
     ({}, None, "at_hash"),
 ])
@@ -100,7 +100,7 @@ def test_an_hmac_token_signed_with_the_public_key_is_refused(auth, keys):
         serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo)
     head = b64(json.dumps({"alg": "HS256", "typ": "JWT", "kid": "k1"}).encode())
     body = b64(json.dumps({"sub": "x", "aud": CLIENT, "iss": ISSUER, "iat": now,
-                           "exp": now + 300, "token_use": "id"}).encode())
+                           "exp": now + 300, "token_use": "id"}).encode())  # nosec B105 (a JWT claim value)
     sig = b64(hmac.new(pem, head + b"." + body, hashlib.sha256).digest())
     forged = (head + b"." + body + b"." + sig).decode()
     with pytest.raises(jwt.InvalidAlgorithmError):

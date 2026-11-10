@@ -502,7 +502,9 @@ def _theory_sentence_pairs(subject_id, source_document: str):
             standalone = [ln.strip() for ln in
                           std_path.read_text(encoding="utf-8").splitlines()
                           if ln.strip()]
-        except Exception:  # pylint: disable=broad-except
+        except Exception as ex:  # pylint: disable=broad-except
+            print(f"store: skipping unreadable sentence files {raw_path}: {ex}",
+                  flush=True)
             continue
         if original and len(original) == len(standalone):
             return original, standalone
@@ -604,8 +606,9 @@ def delete_theory(theory_id: str) -> dict:
             continue
         try:
             _s3.delete_object(Bucket=BUCKET, Key=key)
-        except Exception:  # pylint: disable=broad-except
-            pass
+        except Exception as ex:  # pylint: disable=broad-except
+            print(f"store: delete_theory {theory_id}: could not delete "
+                  f"s3://{BUCKET}/{key} (left as an orphan): {ex}", flush=True)
 
     _theories.delete_item(Key={"id": theory_id})
     return {"ok": True, "deleted": theory_id}
@@ -1085,8 +1088,8 @@ def _synthea_dir() -> "Optional[Path]":
     try:
         import globals as g  # repo-root module
         candidates.append(Path(g.RUNS_DIR).parent / "sentences" / SYNTHEA_DIR_NAME)
-    except Exception:  # pylint: disable=broad-except
-        pass
+    except Exception as ex:  # pylint: disable=broad-except
+        print(f"store: no RUNS_DIR-relative sample directory ({ex})", flush=True)
     for d in candidates:
         if d.is_dir():
             return d
@@ -1620,8 +1623,8 @@ def _run_job_safe(job_id, theory_id, subject_id, name, source_text, doc_type,
         try:
             import utils as _utils
             _utils.set_cancel_check(None)
-        except Exception:  # pylint: disable=broad-except
-            pass
+        except Exception as ex:  # pylint: disable=broad-except
+            print(f"store: could not clear the cancel check: {ex}", flush=True)
 
 
 # --- Suggested-question generation (build-time, baked into the theory) ------
@@ -2149,8 +2152,10 @@ def _to_plain(obj):
     if callable(to_dict):
         try:
             return _to_plain(to_dict())
-        except Exception:  # pylint: disable=broad-except
-            pass
+        except Exception as ex:  # pylint: disable=broad-except
+            # Fall through to the generic conversion below.
+            print(f"store: {type(obj).__name__}.to_dict() failed ({ex}); "
+                  "converting it generically", flush=True)
     attrs = getattr(obj, "__dict__", None)
     if isinstance(attrs, dict) and attrs:
         return _to_plain(dict(attrs))

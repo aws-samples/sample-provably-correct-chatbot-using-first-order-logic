@@ -35,3 +35,10 @@ dev = [
     "pyflakes>=3.4.0",
     "pylint>=4.0.2",
 ]
+
+# Bandit (`bandit -c pyproject.toml -r .`): tests use assert by design, and
+# the vendored/installed trees are not ours to scan. B311 is the standard
+# `random` module, used for retry jitter and sampling, never for security.
+[tool.bandit]
+exclude_dirs = [".venv", "tests", "cdk/docker/tests", "cdk/node_modules", "frontend/node_modules", "cdk/cdk.out"]
+skips = ["B311"]
