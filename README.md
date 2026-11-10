@@ -151,9 +151,9 @@ flowchart TB
 
 **Builder task.** Adding a theory launches a Fargate task of its own (`cdk/docker/build_task.py`), so a build never competes with the web task and survives a redeploy of the web service. It ingests the document, generates the test set, and runs one kiro-cli session over all the sentences. The harness re-verifies the agent's theory independently and resumes the same session with its report until the theory meets the target or the budget runs out ([Appendix C](#appendix-c-functional-architecture-of-the-formalizer)). It then generates the theory's suggested questions: up to as many new questions as the verified test questions, each from one window of the document and kept only if the theory proves an answer. Its progress (phases, each session's cost and verified count, the latest verified theory, the test set) is written to S3 and shown in the **Job Details** tab. **Kill** stops the builder task.
 
-**Edge and auth.** CloudFront terminates TLS, caches the content-hashed SPA assets and forwards everything else uncached to the ALB. The app is private: every request needs a Cognito session cookie, and an unauthenticated viewer is redirected to the Hosted UI. Tokens are exchanged server-side (confidential client), so the browser only holds the app's own signed cookie.
+**Edge and auth.** CloudFront terminates TLS, caches the content-hashed SPA assets and forwards everything else uncached to the ALB. The ALB's security group accepts HTTP only from CloudFront's origin-facing servers (the AWS-managed prefix list `com.amazonaws.global.cloudfront.origin-facing`). The app is private: every request needs a Cognito session cookie, and an unauthenticated viewer is redirected to the Hosted UI. Tokens are exchanged server-side (confidential client), so the browser only holds the app's own signed cookie.
 
-**Credentials.** Both tasks reach Bedrock, S3 and DynamoDB through their task roles; there are no static credentials in the image. The builder reads the Kiro API key from Secrets Manager at runtime and removes every AWS credential variable from kiro-cli's environment, so the agent can never reach the task role.
+**Credentials.** Both tasks reach Bedrock, S3 and DynamoDB through their task roles; there are no static credentials in the image. The roles may invoke only the Bedrock model IDs listed in [`cdk/lib/bedrock-models.ts`](cdk/lib/bedrock-models.ts). The builder reads the Kiro API key from Secrets Manager at runtime and removes every AWS credential variable from kiro-cli's environment, so the agent can never reach the task role.
 
 ## Deploying to AWS
 
@@ -162,7 +162,8 @@ The CDK app in [`cdk/`](cdk/) deploys everything as one stack, `ProvablyCorrectC
 ### Prerequisites
 
 - An AWS account and credentials with permission to deploy ECS, VPC, CloudFront, Cognito, IAM, ECR, DynamoDB, S3, Secrets Manager and CloudWatch resources.
-- **Amazon Bedrock model access** in the target region for the model IDs in [`globals.py`](globals.py) (Claude Sonnet 4.5, Claude Haiku 4.5 and Titan text embeddings). The default region is `us-east-1`.
+- **Amazon Bedrock model access** in the target region for the model IDs in [`cdk/lib/bedrock-models.ts`](cdk/lib/bedrock-models.ts): Claude Sonnet 4.5 (`MODEL_ID` in [`globals.py`](globals.py)), Claude 3.7 Sonnet (the fallback when Sonnet 4.5's content filter blocks an answer) and Titan text embeddings. The default region is `us-east-1`.
+- Read access for the CDK bootstrap lookup role (the default `ReadOnlyAccess` is enough): synth looks up the CloudFront origin-facing prefix list.
 - A **Kiro API key** for headless kiro-cli (it authenticates the builder's agent sessions).
 - A container builder: Docker, or [finch](https://github.com/runfinch/finch) (`CDK_DOCKER=finch`). The image is **ARM64** (to match the cvc5 arm64 static binary and cheaper Fargate ARM); an x86 host builds it with emulation.
 - Node.js 20+ for the CDK app.
@@ -209,7 +210,7 @@ To deploy from CodeBuild instead of a workstation, point a project of its own (`
 
 ### Security checks (cdk-nag)
 
-Every `cdk synth` and `cdk deploy` runs [cdk-nag](https://github.com/cdklabs/cdk-nag)'s AWS Solutions rules over the stack, and an unsuppressed finding fails it. The findings this sample accepts are suppressed in [`cdk/lib/nag-suppressions.ts`](cdk/lib/nag-suppressions.ts), each with its reason and what a production deployment should do instead. They are: no WAF, geo restriction or access logs on CloudFront, the ALB or S3; no VPC flow logs, Container Insights or DynamoDB point-in-time recovery; HTTP from CloudFront to the ALB (no custom domain or certificate) and an ALB open to the internet; no Cognito MFA, threat protection or Plus feature plan; and the IAM wildcards CDK grants and Bedrock cross-region inference need. The synth writes the full report to `cdk/cdk.out/AwsSolutions-*-NagReport.csv`.
+Every `cdk synth` and `cdk deploy` runs [cdk-nag](https://github.com/cdklabs/cdk-nag)'s AWS Solutions rules over the stack, and an unsuppressed finding fails it. The findings this sample accepts are suppressed in [`cdk/lib/nag-suppressions.ts`](cdk/lib/nag-suppressions.ts), each with its reason and what a production deployment should do instead. They are: no WAF, geo restriction or access logs on CloudFront, the ALB or S3; no VPC flow logs, Container Insights or DynamoDB point-in-time recovery; HTTP from CloudFront to the ALB (no custom domain or certificate); no Cognito MFA, threat protection or Plus feature plan; and the IAM wildcards CDK grants and Bedrock cross-region inference need. The synth writes the full report to `cdk/cdk.out/AwsSolutions-*-NagReport.csv`.
 
 ### Removing the stack
 
@@ -238,6 +239,15 @@ Theory names are unique (ignoring case and surrounding spaces). Give the new the
 
 **Every page returns CloudFront `504 Gateway Timeout` while the ECS service is healthy.**
 CloudFront cannot reach the load balancer. Check VPC Block Public Access first (`aws ec2 describe-vpc-block-public-access-options`): in `block-ingress` mode the internet gateway drops all inbound traffic before any security group sees it. The stack exempts its public subnets (`PublicSubnetBpaExclusion1` and `2`); if those were removed, or a subnet already had an exclusion from outside the stack, recreate one with `aws ec2 create-vpc-block-public-access-exclusion --subnet-id <public subnet> --internet-gateway-exclusion-mode allow-bidirectional`.
+
+**The ALB's DNS name times out, while the CloudFront URL works.**
+This is intended: the ALB accepts traffic only from CloudFront's origin-facing prefix list. Use the CloudFront URL.
+
+**`cdk synth` fails with `Encountered CC API error while listing AWS::EC2::PrefixList resources`.**
+The credentials cannot look up the CloudFront prefix list. CDK runs lookups as the bootstrap role `cdk-hnb659fds-lookup-role-<account>-<region>`; give your credentials permission to assume it, or run synth with credentials that allow `cloudcontrol:ListResources` and `ec2:DescribeManagedPrefixLists`. A successful lookup is cached in `cdk/cdk.context.json`.
+
+**Chat answers fail and the service log shows `AccessDeniedException` from `bedrock:InvokeModel`.**
+The model ID in `globals.py` is not in [`cdk/lib/bedrock-models.ts`](cdk/lib/bedrock-models.ts) (`tests/test_bedrock_model_ids.py` catches this), or model access is not enabled for it in Bedrock. Add the ID to `bedrock-models.ts` and redeploy, or enable model access.
 
 **`npm ci` fails with `Missing: yaml@... from lock file`.**
 `frontend/package-lock.json` was written by npm 11; npm 10 dedupes differently. Use npm 11 (`npx -y npm@11 ci`). The Docker build pins npm 11 for this reason.

@@ -5,6 +5,9 @@ import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as path from 'path';
 import { addNagSuppressions } from './nag-suppressions';
+import {
+  BEDROCK_FOUNDATION_MODEL_IDS, BEDROCK_INFERENCE_PROFILE_IDS, profileModel,
+} from './bedrock-models';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as ecsPatterns from 'aws-cdk-lib/aws-ecs-patterns';
@@ -161,19 +164,24 @@ export class ChatbotStack extends cdk.Stack {
       }));
     };
 
-    // Bedrock InvokeModel for the models the app uses (globals.py): Anthropic
-    // Claude, through global.* / us.* cross-region inference profiles, and
-    // Titan text embeddings. A cross-region profile is authorized on the
-    // profile in this region and on the foundation model in whichever region
-    // it routes to, including the region-less arn:aws:bedrock:::foundation-
-    // model/... of global profiles, so the foundation-model region stays '*'.
+    // Bedrock InvokeModel for exactly the models the app calls (listed in
+    // bedrock-models.ts, checked against globals.py by
+    // tests/test_bedrock_model_ids.py). A cross-region inference profile is
+    // authorized on the profile in this region and on its foundation model
+    // in whichever region it routes to, including the region-less
+    // arn:aws:bedrock:::foundation-model/... of global profiles, so the
+    // foundation-model region stays '*'.
+    const bedrockInferenceProfiles = BEDROCK_INFERENCE_PROFILE_IDS.map((id) =>
+      `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/${id}`);
+    const bedrockProfileModels = BEDROCK_INFERENCE_PROFILE_IDS.map((id) =>
+      `arn:aws:bedrock:*::foundation-model/${profileModel(id)}`);
     const bedrockInvokeStatement = () => new iam.PolicyStatement({
       actions: ['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream'],
       resources: [
-        `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/global.anthropic.claude-*`,
-        `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/us.anthropic.claude-*`,
-        'arn:aws:bedrock:*::foundation-model/anthropic.claude-*',
-        `arn:aws:bedrock:${this.region}::foundation-model/amazon.titan-embed-*`,
+        ...bedrockInferenceProfiles,
+        ...bedrockProfileModels,
+        ...BEDROCK_FOUNDATION_MODEL_IDS.map((id) =>
+          `arn:aws:bedrock:${this.region}::foundation-model/${id}`),
       ],
     });
 
@@ -282,7 +290,22 @@ export class ChatbotStack extends cdk.Stack {
         publicLoadBalancer: true,
         // CloudFront terminates TLS; the ALB origin is plain HTTP on :80.
         listenerPort: 80,
+        // No 0.0.0.0/0 ingress; CloudFront is allowed in just below.
+        openListener: false,
       }
+    );
+
+    // Only CloudFront's origin-facing servers may reach the ALB. The
+    // AWS-managed prefix list is looked up at synth (through the CDK
+    // bootstrap lookup role; the result is cached in cdk.context.json). It
+    // counts as about 55 rules against the security group's rules quota.
+    const cloudFrontOriginFacing = ec2.PrefixList.fromLookup(this, 'CloudFrontOriginFacing', {
+      prefixListName: 'com.amazonaws.global.cloudfront.origin-facing',
+    });
+    service.loadBalancer.connections.allowFrom(
+      ec2.Peer.prefixList(cloudFrontOriginFacing.prefixListId),
+      ec2.Port.tcp(80),
+      'HTTP from CloudFront origin-facing servers only',
     );
 
     // Health check hits /healthz, which is intentionally UNauthenticated (the
@@ -574,7 +597,7 @@ export class ChatbotStack extends cdk.Stack {
         originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER,
       },
       additionalBehaviors: {
-        // CRA emits content-hashed files under /static/, safe to cache hard.
+        // Vite emits content-hashed files under /static/ (assetsDir), safe to cache hard.
         '/static/*': {
           origin: albOrigin,
           viewerProtocolPolicy:

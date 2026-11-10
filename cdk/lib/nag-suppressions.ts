@@ -10,6 +10,7 @@
 
 import * as cdk from 'aws-cdk-lib';
 import { NagSuppressions } from 'cdk-nag';
+import { BEDROCK_INFERENCE_PROFILE_IDS, profileModel } from './bedrock-models';
 
 // Findings whose text contains the account id or a token are matched by regex.
 const re = (pattern: string) => ({ regex: `/${pattern}/g` });
@@ -28,15 +29,6 @@ export function addNagSuppressions(stack: cdk.Stack): void {
       'No VPC flow logs: the VPC carries only this sample\'s tasks and their ' +
       'egress through one NAT gateway, and flow logs add CloudWatch ingestion ' +
       'cost. Add vpc.addFlowLog() for production.',
-  }]);
-  suppress('Service/LB/SecurityGroup/Resource', [{
-    id: 'AwsSolutions-EC23',
-    reason:
-      'The ALB accepts HTTP from anywhere because CloudFront (which has no ' +
-      'fixed addresses) is its origin client. Requests that skip CloudFront ' +
-      'still need a Cognito session for every API route. For production, ' +
-      'restrict ingress to the com.amazonaws.global.cloudfront.origin-facing ' +
-      'managed prefix list, or use a CloudFront VPC origin.',
   }]);
   suppress('Service/LB/Resource', [{
     id: 'AwsSolutions-ELB2',
@@ -145,16 +137,12 @@ export function addNagSuppressions(stack: cdk.Stack): void {
   const bedrock = {
     id: 'AwsSolutions-IAM5',
     reason:
-      'Bedrock InvokeModel limited to the model families the app uses ' +
-      '(Anthropic Claude, Titan text embeddings) and to inference profiles in ' +
-      'this region; the trailing * covers model versions. The Claude ' +
-      'foundation-model region is * because a cross-region inference profile ' +
-      'is authorized on the model in whichever region it routes to.',
-    appliesTo: [
-      'Resource::arn:aws:bedrock:*::foundation-model/anthropic.claude-*',
-      re('^Resource::arn:aws:bedrock:[a-z0-9-]+::foundation-model\\/amazon\\.titan-embed-\\*$'),
-      re('^Resource::arn:aws:bedrock:[a-z0-9-]+:[0-9]+:inference-profile\\/(global|us)\\.anthropic\\.claude-\\*$'),
-    ],
+      'Bedrock InvokeModel names exact model ids; the only wildcard is the ' +
+      'region of the foundation models behind the cross-region inference ' +
+      'profiles, because such a profile is authorized on the model in ' +
+      'whichever region it routes to (region-less for global profiles).',
+    appliesTo: BEDROCK_INFERENCE_PROFILE_IDS.map((id) =>
+      `Resource::arn:aws:bedrock:*::foundation-model/${profileModel(id)}`),
   };
   const bucketObjects = {
     id: 'AwsSolutions-IAM5',
