@@ -8,8 +8,16 @@
 #
 # Each package is bounded below at the version the image was last built and
 # tested with and above at its next major release (next minor for 0.x
-# packages, whose minors can break), so a rebuild takes patch and minor fixes
-# but no breaking release. Raise a bound deliberately, then rebuild and test.
+# packages, whose minors can break). Raise a bound deliberately.
+#
+# The image installs requirements.lock, not this file: every package (direct
+# and transitive) pinned with hashes for the image's platform. After editing
+# this file, or to take updates within the bounds, regenerate it from the repo
+# root and rebuild:
+#
+#   uv pip compile cdk/docker/requirements.txt --python-version 3.12 \
+#     --python-platform aarch64-unknown-linux-gnu --generate-hashes \
+#     --no-header -o cdk/docker/requirements.lock
 
 # Web layer
 fastapi>=0.162.2,<0.163

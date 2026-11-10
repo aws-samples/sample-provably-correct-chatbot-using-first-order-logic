@@ -57,9 +57,12 @@ WORKDIR /app
 
 # Python deps. The root modules import a broad set (boto3, strands, nltk,
 # bs4, numpy, langfuse, pyyaml, prompt_toolkit, colorama, requests, dotenv,
-# fastapi, uvicorn). Pinned loosely here; tighten once a lockfile exists.
-COPY cdk/docker/requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+# fastapi, uvicorn); requirements.txt lists them with version bounds.
+# Install the exact, hash-checked versions in requirements.lock (compiled from
+# requirements.txt; see the comment at the top of that file), so every image
+# build installs the same dependency tree the scans and tests saw.
+COPY cdk/docker/requirements.lock /app/requirements.lock
+RUN pip install --no-cache-dir --require-hashes -r /app/requirements.lock
 
 # NLTK data used when (re)generating "I'm feeling lucky" questions.
 RUN python -m nltk.downloader -d /usr/share/nltk_data punkt punkt_tab || true
@@ -122,4 +125,11 @@ RUN useradd --system --uid 10001 --create-home --home-dir /home/app --shell /usr
 USER app
 
 EXPOSE 8000
+
+# For `docker run` and image scanners. ECS ignores an image's HEALTHCHECK: the
+# web container's ECS health check (same command) is set in chatbot-stack.ts,
+# and the builder task, which runs no server, has none.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD curl -fsS http://localhost:8000/healthz || exit 1
+
 CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
