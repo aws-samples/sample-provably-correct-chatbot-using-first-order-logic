@@ -432,6 +432,10 @@ export class ChatbotStack extends cdk.Stack {
       new iam.PolicyStatement({
         actions: ['ecs:RunTask'],
         resources: [builderTaskDef.taskDefinitionArn],
+        // Only in this stack's cluster, like the other ECS grants.
+        conditions: {
+          ArnEquals: { 'ecs:cluster': cluster.clusterArn },
+        },
       })
     );
     service.taskDefinition.taskRole.addToPrincipalPolicy(
