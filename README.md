@@ -296,13 +296,38 @@ To scale out to realistic use cases, we should understand and mitigate the follo
 
 ### Appendix B: Functional architecture
 
-<p align="center">
-  <img src="assets/overall-architecture.png" />
-</p>
+```mermaid
+flowchart LR
+    subgraph s1["① Source document"]
+        direction TB
+        wiki["Wikipedia URL"]
+        paste["Pasted text"]
+        upload["Uploaded file"]
+        fhir["Sample patient<br/>(synthetic FHIR)"]
+    end
+
+    kiro(["kiro-cli"])
+    cvc5a(["cvc5"])
+    auto(("② AutoLogifier<br/>convert the document<br/>to first-order logic"))
+    theory["First-order theory"]
+
+    llm(["LLM"])
+    cvc5b(["cvc5"])
+    bot(("③ The Chatbot<br/>answers from<br/>that theory"))
+    user(["User"])
+
+    s1 --> auto
+    kiro <--> auto
+    auto <--> cvc5a
+    auto --> theory --> bot
+    llm <--> bot
+    bot <--> cvc5b
+    user <-- "question / answer" --> bot
+```
 
 The steps indicated in the diagram are:
-1.	Start with a document, e.g. a Wikipedia page. For a page, download it, parse the HTML with Beautiful Soup and split the body into sentences with NLTK.
-2.	The formalizer (labelled WikiLogifier in the diagram) translates the whole document into a first-order theory of the knowledge in it. It uses an LLM, a kiro-cli agent and cvc5.
+1.	Start with a document: a Wikipedia page, pasted text, an uploaded file, or one of the sample patients (a synthetic HL7 FHIR Bundle). A Wikipedia page is downloaded, its HTML parsed with Beautiful Soup and its body split into sentences with NLTK. [Appendix F](#appendix-f-ingestion-pipeline--adding-a-new-theory) describes how each kind of document is ingested.
+2.	The formalizer (the AutoLogifier in the diagram) translates the whole document into a first-order theory of the knowledge in it. A kiro-cli agent writes the theory and tests it with cvc5. An LLM prepares the inputs beforehand: the standalone sentences and the test set.
 3.	The chatbot takes the first-order theory from #2 and uses an LLM and a theorem prover (cvc5) to generate provably correct answers to the user’s questions.
 
 [Appendix C](#appendix-c-functional-architecture-of-the-formalizer) discusses the formalizer and [Appendix D](#appendix-d-functional-architecture-of-the-chatbot) discusses the chatbot.
