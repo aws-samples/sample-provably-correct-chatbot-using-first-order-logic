@@ -758,6 +758,14 @@
 /* --- Shared helpers ----------------------------------------------------- */
 .muted { color: var(--color-unverified-text); }
 .small { font-size: 13px; }
+
+/* Standing notice under every tab. */
+.app-footer {
+  padding: 8px 16px;
+  font-size: 12px;
+  text-align: center;
+  color: var(--color-unverified-text);
+}
 .error-text { color: var(--color-error-text); }
 
 /* The sentence count in the Theories table is a link-styled button that opens

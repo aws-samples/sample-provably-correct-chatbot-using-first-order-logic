@@ -41,6 +41,13 @@ test('there is no general Job Details tab', async () => {
   expect(tabNames()).toEqual(['Super Chat', 'Theories', 'Jobs']);
 });
 
+test('every page says it is not for professional advice', async () => {
+  render(<App />);
+  await screen.findByRole('button', { name: 'Cape Canaveral' });
+  expect(screen.getByRole('contentinfo'))
+    .toHaveTextContent('Not for legal, medical or other professional advice.');
+});
+
 test('clicking a job name opens its own tab, and again just switches to it', async () => {
   render(<App />);
   fireEvent.click(await screen.findByRole('button', { name: 'Cape Canaveral' }));

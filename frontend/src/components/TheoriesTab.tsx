@@ -372,6 +372,10 @@ export function TheoriesTab({
             </div>
           )}
 
+          <p className="muted small" role="note">
+            Do not upload real personal or health information.
+          </p>
+
           <div className="mode-toggle">
             <label>
               <input
@@ -445,8 +449,8 @@ export function TheoriesTab({
                 ))}
               </select>
               <p className="muted small">
-                A synthetic patient's HL7 FHIR Bundle, built as a FHIR theory
-                (no upload needed).
+                A synthetic (Synthea-generated) HL7 FHIR Bundle, not a real
+                patient's record, built as a FHIR theory (no upload needed).
               </p>
             </div>
           )}

@@ -139,3 +139,10 @@ test('a new theory whose name is taken must be renamed before building', () => {
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   expect(screen.getByLabelText('Name')).toHaveFocus();
 });
+
+test('the add-theory form warns against uploading real personal or health data', () => {
+  render(<TheoriesTab {...LINKS} theories={THEORIES} jobs={[]} onChanged={vi.fn()} />);
+  fireEvent.click(screen.getByRole('button', { name: '+ Add theory' }));
+  expect(screen.getByRole('note'))
+    .toHaveTextContent('Do not upload real personal or health information.');
+});

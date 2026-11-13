@@ -200,6 +200,9 @@ function App() {
           <JobIntrospectionTab key={activeJobTab} jobs={jobs} jobId={activeJobTab} />
         )}
       </main>
+      <footer className="app-footer">
+        Research prototype. Not for legal, medical or other professional advice.
+      </footer>
     </div>
   );
 }
