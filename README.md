@@ -306,9 +306,17 @@ flowchart LR
         fhir["Sample patient<br/>(synthetic FHIR)"]
     end
 
-    kiro(["kiro-cli"])
-    cvc5a(["cvc5"])
-    auto(("② AutoLogifier<br/>convert the document<br/>to first-order logic"))
+    %% kiro-cli above and cvc5 below the AutoLogifier: they sit in a top-to-
+    %% bottom subgraph. Edges from outside link to the subgraph, not to the
+    %% AutoLogifier node, or Mermaid would ignore the subgraph's direction.
+    subgraph s2[" "]
+        direction TB
+        kiro(["kiro-cli"])
+        auto(("② AutoLogifier<br/>convert the document<br/>to first-order logic"))
+        cvc5a(["cvc5"])
+        kiro <--> auto
+        auto <--> cvc5a
+    end
     theory["First-order theory"]
 
     llm(["LLM"])
@@ -316,13 +324,12 @@ flowchart LR
     bot(("③ The Chatbot<br/>answers from<br/>that theory"))
     user(["User"])
 
-    s1 --> auto
-    kiro <--> auto
-    auto <--> cvc5a
-    auto --> theory --> bot
+    s1 --> s2
+    s2 --> theory --> bot
     llm <--> bot
     bot <--> cvc5b
     user <-- "question / answer" --> bot
+    style s2 fill:none,stroke:none
 ```
 
 The steps indicated in the diagram are:
