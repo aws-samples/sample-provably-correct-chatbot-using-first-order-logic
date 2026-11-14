@@ -31,7 +31,7 @@ For each of these responses from the chatbot (“AI: …”), the PoC in this pr
 
 Before describing how this project works, I will first set some context by introducing formal logics and then Neuro-symbolic AI, and finally show how they can together improve the accuracy of a chatbot.
 
-[^1]: There are some minor exceptions, due to the translation to/from natural language and first-order logic; see [FAQ2](#faq2-will-this-solution-confabulate).
+[^1]: There are some minor exceptions, due to the translation to/from natural language and first-order logic; see [FAQ1](#faq1-will-this-solution-confabulate).
 
 ## Formal logic
 
@@ -54,7 +54,7 @@ By integrating these approaches, neuro-symbolic AI can achieve more robust reaso
 
 ## Cvc5
 
-I use an open-source [first-order](https://en.wikipedia.org/wiki/First-order_logic) theorem prover, [cvc5](https://cvc5.github.io/). To understand why I currently use cvc5 and not [Bedrock Guardrails Automated Reasoning (AR) checks](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-automated-reasoning-checks.html) see [FAQ1](#faq1-why-did-i-not-use-bedrock-guardrails-automated-reasoning-ar-checks).
+I use an open-source [first-order](https://en.wikipedia.org/wiki/First-order_logic) theorem prover, [cvc5](https://cvc5.github.io/).
 
 ## Assumptions
 
@@ -220,7 +220,7 @@ Every `cdk synth` and `cdk deploy` runs [cdk-nag](https://github.com/cdklabs/cdk
 
 ### Cost
 
-Always on: the web task (2 vCPU / 8 GB ARM Fargate), one NAT gateway and CloudFront. Per build: a builder task (8 vCPU / 48 GB ARM Fargate) for the duration of the build, the Bedrock calls for standalone rewrites, test-set generation and re-verification, and the kiro-cli credits of its sessions. Job Details shows each build's kiro-cli credits and their dollar cost (at `KIRO_DOLLARS_PER_CREDIT`, default $0.04).
+Itemized estimates and measured builds are in [FAQ2](#faq2-how-much-does-it-cost). Always on: the web task (2 vCPU / 8 GB ARM Fargate), one NAT gateway and the ALB. Per build: a builder task (8 vCPU / 48 GB ARM Fargate) for the duration of the build, the Bedrock calls for standalone rewrites, test-set generation and re-verification, and the kiro-cli credits of its sessions. Job Details shows each build's kiro-cli credits and their dollar cost (at `KIRO_DOLLARS_PER_CREDIT`, default $0.04).
 
 ## Troubleshooting
 
@@ -262,28 +262,53 @@ The Hosted UI prefix `provably-correct-chatbot-<account>` is taken in this accou
 
 ## Frequently asked questions
 
-### FAQ1: Why did I not use Bedrock Guardrails Automated Reasoning (AR) checks?
-One of the most important decisions to make when choosing a theorem prover is the expressiveness of the required theory. This determines the efficiency of inference (e.g., is it decidable?) and the ability to express the concepts that I need.
+### FAQ1: Will this solution confabulate?
 
-The two most used types of theories are [propositional](https://en.wikipedia.org/wiki/Propositional_logic) and [first-order](https://en.wikipedia.org/wiki/First-order_logic) (or _predicate_). A propositional theory is a set of statements like `(and a (=> b c))` where `a`, `b`, and `c` are atomic. First-order theories build on propositional theories by adding quantifiers, predicates and functions. This project uses first-order theories because healthcare needs concepts like `(> (prevalence-of Diabetes) 0.9)` and concepts like `(forall (time) …)` that require quantification.
-
-AR checks supports only propositional theories (no quantifiers, relations, or functions. This decision is made for a good reason: propositional satisfiability is decidable and fast. However, it means that AR checks cannot represent the types of knowledge needed for this problem.
-
-### FAQ2: Will this solution confabulate?
-
-This chatbot combines a theorem prover and an LLM, so it still can confabulate. There is, however, a greatly reduced scope for confabulations compared to a traditional Generative AI chatbot. With this chatbot, the key to generating an answer is the theorem prover, which always produces provably correct answers (modulo the correctness of the underlying theory). The LLM plays a relatively minor role: it just translates from natural language to first-order logic, and then from first-order logic back to natural language. This relies on the LLM’s ability to understand and generate relatively small pieces of code (first-order logic) which is a task that LLMs excel at.
+This chatbot combines a theorem prover and an agentic coding harness, so it still can confabulate. There is, however, a greatly reduced scope for confabulations compared to a traditional Generative AI chatbot. With this chatbot, the key to generating an answer is the theorem prover, which always produces provably correct answers (modulo the correctness of the underlying theory). The agentic coding harness (kiro-cli) builds that theory; at question time an LLM plays a relatively minor role: it just translates from natural language to first-order logic, and then from first-order logic back to natural language. This relies on the LLM’s ability to understand and generate relatively small pieces of code (first-order logic) which is a task that LLMs excel at.
 
 The other potential for errors is in the underlying theory created by the formalizer: the theorem prover can only prove correctness relative to the theory (the axioms) that it is given. The formalizer only accepts a theory that is valid and that independently verifies against a test set of questions (see [Appendix C](#appendix-c-functional-architecture-of-the-formalizer)), and it produces more correct theories when given a larger test set or a higher required ratio.
 
 “Provably correct” means proved from the theory built from the document. It does not mean the document is accurate, complete or current, and an answer is not legal, medical or other professional advice.
 
-### FAQ3: How big a document can one build handle?
+### FAQ2: How much does it cost?
 
-One kiro-cli session reads every sentence, designs one vocabulary for the whole document and builds the theory section by section, checking it with cvc5 as it goes. The agent works in files (`theory.smt2`, one fragment per test question), so the theory does not have to fit in a single model response. What bounds a build is the session's time budget and how well the agent keeps a large theory consistent. The test set grows with the document (about one question per sentence by default), and checking it is batched: the agent asks up to 50 fragments per checker call, and the harness re-verifies `verify_pool_size` questions at a time.
+All figures are US dollars in `us-east-1` at on-demand prices: [Fargate](https://aws.amazon.com/fargate/pricing/) Linux/ARM at $0.03238 per vCPU-hour and $0.00356 per GB-hour, Claude Sonnet 4.5 on Bedrock at $3 / $15 per million input / output tokens, and kiro-cli at $0.04 per credit (the overage rate; credits included in a Kiro plan work out to about $0.02). They are estimates, not a quote; check your bill.
 
-### FAQ4: How much does a build cost?
+**Per build.** A build pays for three things:
 
-Each build's cost is in its Job Details tab: kiro-cli credits and dollars per session and in total. The Bedrock calls (standalone rewrites, test-set generation and re-verification) and the builder task's Fargate time come on top; see [Cost](#cost).
+| Item | What it is | Rate |
+| --- | --- | --- |
+| Builder task | Fargate, 8 vCPU / 48 GB ARM, for the length of the build | $0.43 per hour |
+| kiro-cli | The agent session(s) that write and test the theory | $0.04 per credit |
+| Bedrock | Standalone rewrites, test-set generation and the harness's re-verification of every test question (Sonnet 4.5) | per token |
+
+Measured builds from this deployment (the Bedrock column is the build log's `total inference cost`; it leaves out suggested-question generation, which runs afterwards):
+
+| Document | Size | Test set | Duration | Builder task | kiro-cli | Bedrock | Total |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Stanton Schimmel (FHIR) | 39 entries | 78 | 13 min | $0.09 | 5.8 credits, $0.23 | $0.59 | **$0.91** |
+| Cape Canaveral (text) | 69 sentences | 69 | 12 min | $0.09 | 6.5 credits, $0.26 | $0.71 | **$1.06** |
+| Hypertension (text) | 269 sentences | 269 | 36 min | $0.26 | 38.4 credits, $1.54 | $2.79 | **$4.59** |
+| Aristotle (text) | 396 sentences | 396 | 44 min | $0.32 | 60.3 credits, $2.41 | $4.06 | **$6.79** |
+| 2026 United States elections (text) | 424 sentences | 424 | 46 min | $0.33 | 76.6 credits, $3.06 | $4.22 | **$7.61** |
+| Ali Krajcik (FHIR) | 325 entries | 650 | 64 min | $0.46 | 128.5 credits, $5.14 | $4.09 | **$9.69** |
+
+As a rule of thumb, a text document costs about $1.50–$1.80 per 100 sentences, and a FHIR document about $2.50–$3.00 per 100 entries (it gets two test questions per entry). A failed or killed build still pays for the Bedrock calls and builder time it used: one failed Ali Krajcik build spent $5.54 on Bedrock before it stopped.
+
+**Per question.** Each chat question runs 10 attempts in parallel, and each attempt makes a few Bedrock calls (about $0.01–$0.02 per attempt in the build logs), so expect roughly $0.10–$0.20 per question. A Super Chat question shares its 10 attempts across its theories, so it costs about the same.
+
+**Always on.** These are charged whether or not anyone uses the app, about $130 a month:
+
+| Item | Basis | Per month |
+| --- | --- | --- |
+| Web task | Fargate, 2 vCPU / 8 GB ARM, around the clock | $68 |
+| NAT gateway | $0.045 per hour, plus $0.045 per GB processed | $33 + data |
+| Application Load Balancer | $0.0225 per hour, plus load balancer capacity units | $16 + LCUs |
+| Public IPv4 addresses | 3 (the ALB in two AZs and the NAT gateway) at $0.005 per hour | $11 |
+| Secrets Manager | The Kiro API key secret | $0.40 |
+| CloudFront, Cognito, DynamoDB, S3, ECR | Within free tiers or a few cents at sample traffic | ~$1 |
+
+CloudWatch Logs ingestion ($0.50 per GB) also grows with use: the builder logs are verbose, and this deployment's builder log group held about 500 MB after a dozen builds. `cdk destroy` stops all of these charges (see [Removing the stack](#removing-the-stack)).
 
 ## Appendices
 
@@ -372,7 +397,7 @@ This does not rely on the expected answers being completely accurate; the LLM th
 
 ### Appendix D: Functional architecture of the Chatbot
 
-The chatbot is unlike traditional Generative AI chatbots in that it does not use the LLM’s reasoning capabilities to answer questions. Rather, this chatbot uses the underlying theory (created by the formalizer) and the theorem prover to generate a provably correct answer to the user’s question. The chatbot uses an LLM in two ways: first, to translate the user’s natural language question into first order logic. Second, the LLM converts the theorem prover’s first-order representation of the answer to the question (if there is one) back into natural language. If the theorem prover can find an answer to the question, it will give that answer back to the user. If it can’t find an answer, then it will tell the user “I don’t know.” It will only ever do one of these two things: it will never confabulate. (See [FAQ2](#faq2-will-this-solution-confabulate) for more discussion around the potential for confabulations.)
+The chatbot is unlike traditional Generative AI chatbots in that it does not use the LLM’s reasoning capabilities to answer questions. Rather, this chatbot uses the underlying theory (created by the formalizer) and the theorem prover to generate a provably correct answer to the user’s question. The chatbot uses an LLM in two ways: first, to translate the user’s natural language question into first order logic. Second, the LLM converts the theorem prover’s first-order representation of the answer to the question (if there is one) back into natural language. If the theorem prover can find an answer to the question, it will give that answer back to the user. If it can’t find an answer, then it will tell the user “I don’t know.” It will only ever do one of these two things: it will never confabulate. (See [FAQ1](#faq1-will-this-solution-confabulate) for more discussion around the potential for confabulations.)
 
 To reiterate, as this is the key feature of this chatbot: it will only answer a question if it can prove that the answer is correct. If it can’t find a provably correct answer it will always say “I don’t know.”
 
