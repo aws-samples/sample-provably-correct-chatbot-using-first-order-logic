@@ -333,9 +333,11 @@ flowchart LR
         fhir["Sample patient<br/>(synthetic FHIR)"]
     end
 
-    %% kiro-cli above and cvc5 below the AutoLogifier: they sit in a top-to-
-    %% bottom subgraph. Edges from outside link to the subgraph, not to the
-    %% AutoLogifier node, or Mermaid would ignore the subgraph's direction.
+    %% kiro-cli above and cvc5 below the AutoLogifier, and cvc5 above and
+    %% the LLM below the Chatbot: each trio sits in a top-to-bottom subgraph,
+    %% which keeps its middle node level with the First-order theory. Edges
+    %% from outside link to the subgraph, not to the node inside it, or
+    %% Mermaid would ignore the subgraph's direction.
     subgraph s2[" "]
         direction TB
         kiro(["kiro-cli"])
@@ -346,17 +348,21 @@ flowchart LR
     end
     theory["First-order theory"]
 
-    llm(["LLM"])
-    cvc5b(["cvc5"])
-    bot(("③ The Chatbot<br/>answers from<br/>that theory"))
+    subgraph s3[" "]
+        direction TB
+        cvc5b(["cvc5"])
+        bot(("③ The Chatbot<br/>answers from<br/>that theory"))
+        llm(["LLM"])
+        cvc5b <--> bot
+        bot <--> llm
+    end
     user(["User"])
 
     s1 --> s2
-    s2 --> theory --> bot
-    llm <--> bot
-    bot <--> cvc5b
-    user <-- "question / answer" --> bot
+    s2 --> theory --> s3
+    user <-- "question / answer" --> s3
     style s2 fill:none,stroke:none
+    style s3 fill:none,stroke:none
 ```
 
 The steps indicated in the diagram are:
