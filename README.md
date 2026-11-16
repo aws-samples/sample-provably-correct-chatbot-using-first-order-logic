@@ -78,7 +78,7 @@ The goal here is to build a _reliable_ system (an accurate chatbot) from a colle
 
 The chatbot is an expert in one document. It has two main components:
 
-1.	The **formalizer** computes a first-order logic representation (a theory) of the whole document in one unit of work (see [Appendix C](#appendix-c-functional-architecture-of-the-formalizer)).
+1.	The **auto formalizer** computes a first-order logic representation (a theory) of the whole document in one unit of work (see [Appendix C](#appendix-c-functional-architecture-of-the-auto-formalizer)).
 2.	Given this first-order theory (#1), the **chatbot** answers a user’s question as follows:
 
     2.1.	An LLM converts the user’s natural language question into first-order logic.
@@ -151,7 +151,7 @@ flowchart TB
 
 **Web task.** One FastAPI process serves the SPA and the API from the same origin. The answer path turns a question into SMT-LIB (①), asks **cvc5** whether it is satisfiable against the selected theory (②), and if so turns cvc5's model back into prose (③). An unsatisfiable result returns the literal *"I don't know."* The chatbot serves only theories built in this deployment; until one is ready, the composer is disabled.
 
-**Builder task.** Adding a theory launches a Fargate task of its own (`cdk/docker/build_task.py`), so a build never competes with the web task and survives a redeploy of the web service. It ingests the document, generates the test set, and runs one kiro-cli session over all the sentences. The harness re-verifies the agent's theory independently and resumes the same session with its report until the theory meets the target or the budget runs out ([Appendix C](#appendix-c-functional-architecture-of-the-formalizer)). It then generates the theory's suggested questions: up to as many new questions as the verified test questions, each from one window of the document and kept only if the theory proves an answer. Its progress (phases, each session's cost and verified count, the latest verified theory, the test set) is written to S3 and shown in the **Job Details** tab. **Kill** stops the builder task.
+**Builder task.** Adding a theory launches a Fargate task of its own (`cdk/docker/build_task.py`), so a build never competes with the web task and survives a redeploy of the web service. It ingests the document, generates the test set, and runs one kiro-cli session over all the sentences. The harness re-verifies the agent's theory independently and resumes the same session with its report until the theory meets the target or the budget runs out ([Appendix C](#appendix-c-functional-architecture-of-the-auto-formalizer)). It then generates the theory's suggested questions: up to as many new questions as the verified test questions, each from one window of the document and kept only if the theory proves an answer. Its progress (phases, each session's cost and verified count, the latest verified theory, the test set) is written to S3 and shown in the **Job Details** tab. **Kill** stops the builder task.
 
 **Edge and auth.** CloudFront terminates TLS, caches the content-hashed SPA assets and forwards everything else uncached to the ALB. The ALB's security group accepts HTTP only from CloudFront's origin-facing servers (the AWS-managed prefix list `com.amazonaws.global.cloudfront.origin-facing`). The app is private: every request needs a Cognito session cookie, and an unauthenticated viewer is redirected to the Hosted UI. Tokens are exchanged server-side (confidential client), so the browser only holds the app's own signed cookie.
 
@@ -266,7 +266,7 @@ The Hosted UI prefix `provably-correct-chatbot-<account>` is taken in this accou
 
 This chatbot combines a theorem prover and an agentic coding harness, so it still can confabulate. There is, however, a greatly reduced scope for confabulations compared to a traditional Generative AI chatbot. With this chatbot, the key to generating an answer is the theorem prover, which always produces provably correct answers (modulo the correctness of the underlying theory). The agentic coding harness (kiro-cli) builds that theory; at question time an LLM plays a relatively minor role: it just translates from natural language to first-order logic, and then from first-order logic back to natural language. This relies on the LLM’s ability to understand and generate relatively small pieces of code (first-order logic) which is a task that LLMs excel at.
 
-The other potential for errors is in the underlying theory created by the formalizer: the theorem prover can only prove correctness relative to the theory (the axioms) that it is given. The formalizer only accepts a theory that is valid and that independently verifies against a test set of questions (see [Appendix C](#appendix-c-functional-architecture-of-the-formalizer)), and it produces more correct theories when given a larger test set or a higher required ratio.
+The other potential for errors is in the underlying theory created by the auto formalizer: the theorem prover can only prove correctness relative to the theory (the axioms) that it is given. The auto formalizer only accepts a theory that is valid and that independently verifies against a test set of questions (see [Appendix C](#appendix-c-functional-architecture-of-the-auto-formalizer)), and it produces more correct theories when given a larger test set or a higher required ratio.
 
 “Provably correct” means proved from the theory built from the document. It does not mean the document is accurate, complete or current, and an answer is not legal, medical or other professional advice.
 
@@ -367,14 +367,14 @@ flowchart LR
 
 The steps indicated in the diagram are:
 1.	Start with a document: a Wikipedia page, pasted text, an uploaded file, or one of the sample patients (a synthetic HL7 FHIR Bundle). A Wikipedia page is downloaded, its HTML parsed with Beautiful Soup and its body split into sentences with NLTK. [Appendix F](#appendix-f-ingestion-pipeline--adding-a-new-theory) describes how each kind of document is ingested.
-2.	The formalizer (the AutoFormalizer in the diagram) translates the whole document into a first-order theory of the knowledge in it. A kiro-cli agent writes the theory and tests it with cvc5. An LLM prepares the inputs beforehand: the standalone sentences and the test set.
+2.	The auto formalizer (② AutoFormalizer in the diagram) translates the whole document into a first-order theory of the knowledge in it. A kiro-cli agent writes the theory and tests it with cvc5. An LLM prepares the inputs beforehand: the standalone sentences and the test set.
 3.	The chatbot takes the first-order theory from #2 and uses an LLM and a theorem prover (cvc5) to generate provably correct answers to the user’s questions.
 
-[Appendix C](#appendix-c-functional-architecture-of-the-formalizer) discusses the formalizer and [Appendix D](#appendix-d-functional-architecture-of-the-chatbot) discusses the chatbot.
+[Appendix C](#appendix-c-functional-architecture-of-the-auto-formalizer) discusses the auto formalizer and [Appendix D](#appendix-d-functional-architecture-of-the-chatbot) discusses the chatbot.
 
-### Appendix C: Functional architecture of the formalizer
+### Appendix C: Functional architecture of the auto formalizer
 
-The formalizer ([`auto_formalizer.formalize_document`](auto_formalizer.py)) turns all of a document's sentences into **one** theory in a single unit of work:
+The auto formalizer ([`auto_formalizer.formalize_document`](auto_formalizer.py)) turns all of a document's sentences into **one** theory in a single unit of work:
 
 1.	**Standalone sentences.** Each sentence is rewritten by an LLM into a standalone sentence whose meaning does not depend on the sentences before it (for prose; see [Appendix F](#appendix-f-ingestion-pipeline--adding-a-new-theory)).
 2.	**Test set.** An LLM generates question / expected-answer pairs for the whole document. The sentences are split into windows (`qa_window_sentences`, default 10), each window gets its share of the questions, and the windows run in parallel (`qa_pool_size`). A question too similar to one already kept, from any window, is dropped, and generation continues in rounds, each asking the windows for the questions still missing, until the test set reaches its size: `qas_per_sentence` per sentence (twice that for FHIR). Only when every window has stopped producing new questions does it settle for fewer, with a warning in the build log.
@@ -405,7 +405,7 @@ This does not rely on the expected answers being completely accurate; the LLM th
 
 ### Appendix D: Functional architecture of the Chatbot
 
-The chatbot is unlike traditional Generative AI chatbots in that it does not use the LLM’s reasoning capabilities to answer questions. Rather, this chatbot uses the underlying theory (created by the formalizer) and the theorem prover to generate a provably correct answer to the user’s question. The chatbot uses an LLM in two ways: first, to translate the user’s natural language question into first order logic. Second, the LLM converts the theorem prover’s first-order representation of the answer to the question (if there is one) back into natural language. If the theorem prover can find an answer to the question, it will give that answer back to the user. If it can’t find an answer, then it will tell the user “I don’t know.” It will only ever do one of these two things: it will never confabulate. (See [FAQ1](#faq1-will-this-solution-confabulate) for more discussion around the potential for confabulations.)
+The chatbot is unlike traditional Generative AI chatbots in that it does not use the LLM’s reasoning capabilities to answer questions. Rather, this chatbot uses the underlying theory (created by the auto formalizer) and the theorem prover to generate a provably correct answer to the user’s question. The chatbot uses an LLM in two ways: first, to translate the user’s natural language question into first order logic. Second, the LLM converts the theorem prover’s first-order representation of the answer to the question (if there is one) back into natural language. If the theorem prover can find an answer to the question, it will give that answer back to the user. If it can’t find an answer, then it will tell the user “I don’t know.” It will only ever do one of these two things: it will never confabulate. (See [FAQ1](#faq1-will-this-solution-confabulate) for more discussion around the potential for confabulations.)
 
 To reiterate, as this is the key feature of this chatbot: it will only answer a question if it can prove that the answer is correct. If it can’t find a provably correct answer it will always say “I don’t know.”
 
@@ -429,7 +429,7 @@ The container image ([`cdk/docker/Dockerfile`](cdk/docker/Dockerfile)) is built 
 
 ### Appendix F: Ingestion pipeline — adding a new theory
 
-When you add a theory, the source document is **classified by type** and turned into a list of standalone "sentences". Then the formalizer builds the theory from all of them. The abstractions live in [`sentences.py`](sentences.py); the runner is [`cdk/docker/store.py`](cdk/docker/store.py).
+When you add a theory, the source document is **classified by type** and turned into a list of standalone "sentences". Then the auto formalizer builds the theory from all of them. The abstractions live in [`sentences.py`](sentences.py); the runner is [`cdk/docker/store.py`](cdk/docker/store.py).
 
 ```mermaid
 flowchart TB
@@ -525,7 +525,7 @@ Regardless of type, all of the document's standalone units go to one build
 (`Document.make_standalone_lines` makes each document's run of sentences
 standalone, so a build over several subjects keeps each one's context). The
 test set is generated over windows of them, and one kiro-cli session builds the
-theory ([Appendix C](#appendix-c-functional-architecture-of-the-formalizer)).
+theory ([Appendix C](#appendix-c-functional-architecture-of-the-auto-formalizer)).
 The build's run file, and the theory YAML stored from it, is what the chatbot
 serves.
 
