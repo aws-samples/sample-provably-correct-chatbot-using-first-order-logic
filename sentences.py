@@ -21,7 +21,7 @@ from abc import ABC, abstractmethod
 import yaml
 
 import globals as g
-from subjects import is_synthea_based, get_subject_by_id, is_mdm_based
+from subjects import is_synthea_based, get_subject_by_id
 from utils import (Statistics, load_lines, _cancelled,
                    extract_code_blocks, do_inference, flatten1, JSON,
                    get_global_stats, yaml_dump, ForcedLiteralDumper,
@@ -111,8 +111,6 @@ class Document(ABC):
         """
         if is_synthea_based(subject_id):
             ctor = FHIRdocument
-        elif is_mdm_based(subject_id):
-            ctor = MDMdocument
         else:
             ctor = TextDocument
         return ctor(subject_id, stats)
@@ -341,41 +339,6 @@ class FHIRdocument (Document):
         return rv
 
 
-class MDMdocument (TextDocument):
-    """ A document that contains sentences extracted from the MDM pdf """
-    def __init__(self, subject_id: str,
-                       stats: Optional[Statistics] = None):
-        super().__init__(subject_id, stats)
-        originals_with_header = self._raw_sentences_path.read_text().split("---")
-        originals_with_header = [s.replace("\n", " ")
-                                 for s in originals_with_header]
-        print("originals_with_header:")
-        for s in originals_with_header:
-            print(f" - <<{s}>>")
-        self.header = originals_with_header[0]
-        self._originals = originals_with_header[1:]
-
-    @classmethod
-    def make_chunk_standalone_(cls, sentences: List[Sentence]) -> List[str]:
-        """
-        Return a list of strings that represent the standalone versions of
-        the sentences. For a TextDocument is easy, we just concatenate them.
-        For a FHIR document we have to handle the (potentially) different
-        patient entries from the incoming sentences.
-        """
-        docs = {s.document for s in sentences}
-        [doc] = list(docs)
-        assert len(docs) == 1, f"all sents must be from same doc: {docs}"
-        return [doc.header] + [s.original for s in sentences]
-
-    def sentences(self) -> List[Sentence]:
-        """
-        Iterate over all standalone Sentences in this document
-        """
-        return [MDMsentence(original, document=self)
-                for original in self._originals]
-
-
 class Sentence:
     """
     base class for all types of sentences.
@@ -539,41 +502,6 @@ yaml.SafeLoader.add_constructor("!FHIRsentence",
                                 FHIRsentence.yaml_constructor)
 
 
-class MDMsentence(TextSentence):
-    """
-    An MDM sentence is just like a Text Sentence, we just serialize it 
-    differently.
-    """
-
-    def yaml_representer(self, dumper):
-        return dumper.represent_mapping('!MDMsentence', {
-            'original': self.original,
-            'standalone': self.standalone
-        })
-
-    @classmethod
-    def yaml_constructor(cls, loader, node):
-        fields = loader.construct_mapping(node, deep=True)
-        return MDMsentence(**fields)
-
-    def __eq__(self, other):
-        return isinstance(other, MDMsentence) and \
-               self.original == other.original and \
-               self.standalone == other.standalone
-
-    def __str__(self) -> str:
-        return f"MDMsentence(original='{self.original}' standalone='{self.standalone}')"
-
-    def __repr__(self) -> str:
-        return self.__str__()
-
-
-ForcedLiteralDumper.add_representer(MDMsentence,
-                                    lambda dumper, sentence:
-                                        sentence.yaml_representer(dumper))
-yaml.SafeLoader.add_constructor('!MDMsentence', MDMsentence.yaml_constructor)
-
-
 def test_sentence_serialization(document_class: Type, subject_id: str):
     doc = document_class(subject_id=subject_id)
     sent = doc.sentences()[1]
@@ -597,11 +525,6 @@ def test_fhir_sentence_serialization():
     test_sentence_serialization(FHIRdocument, "Austin_McLaughlin")
 
 
-def test_mdm_sentence_serialization():
-    test_sentence_serialization(MDMdocument, "mdm")
-
-
 if __name__ == "__main__":
     test_text_sentence_serialization()
     test_fhir_sentence_serialization()
-    # test_mdm_sentence_serialization()

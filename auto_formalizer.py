@@ -1117,7 +1117,7 @@ def formalize_document() -> dict:
             type="start",
             sentences=Document.make_standalone_lines(sentences),
             raw_sentences=[s.original for s in sentences],
-            # Text and MDM sentences have an LLM rewrite; FHIR entries get
+            # Text sentences have an LLM rewrite; FHIR entries get
             # their patient context attached structurally instead.
             standalone_sentences=[getattr(s, "standalone", None) for s in sentences]))
         runs_path = generate_uniq_run_file(g.p.subject_ids)

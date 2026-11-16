@@ -17,7 +17,6 @@ class Subject:
     id: str
     wikipedia_url: Optional[str] = None
     synthea_path: Optional[str] = None
-    mdm_path: Optional[str] = None
 
     def title(self) -> str:
         """
@@ -31,8 +30,6 @@ class Subject:
             result += f", wikipedia_url='{self.wikipedia_url}'"
         if self.synthea_path:
             result += f", synthea_path='{self.synthea_path}'"
-        if self.mdm_path:
-            result += f", mdm_path='{self.mdm_path}'"
         return result + ")"
     
     __repr__ = __str__
@@ -51,8 +48,6 @@ SUBJECTS = [
             wikipedia_url="https://en.wikipedia.org/wiki/Chronic_obstructive_pulmonary_disease"),
     Subject("New Zealand", "new_zealand",
             wikipedia_url="https://en.wikipedia.org/wiki/New_Zealand"),
-    Subject("MDM", "mdm",
-            mdm_path="MDM-sentences.txt")
 ]
 
 
@@ -98,15 +93,9 @@ def is_synthea_based(subject_id: str) -> bool:
     return get_subject_by_id(subject_id).synthea_path is not None
 
 
-def is_mdm_based(subject_id: str) -> bool:
-    return get_subject_by_id(subject_id).mdm_path is not None
-
-
 def subject_type(subject_id: str) -> str:
     if is_synthea_based(subject_id):
         return "fhir"
-    elif is_mdm_based(subject_id):
-        return "mdm"
     else:
         return "default"
 
