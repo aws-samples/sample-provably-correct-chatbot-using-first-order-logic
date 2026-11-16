@@ -333,7 +333,7 @@ flowchart LR
         fhir["Sample patient<br/>(synthetic FHIR)"]
     end
 
-    %% kiro-cli above and cvc5 below the AutoLogifier, and cvc5 above and
+    %% kiro-cli above and cvc5 below the AutoFormalizer, and cvc5 above and
     %% the LLM below the Chatbot: each trio sits in a top-to-bottom subgraph,
     %% which keeps its middle node level with the First-order theory. Edges
     %% from outside link to the subgraph, not to the node inside it, or
@@ -341,7 +341,7 @@ flowchart LR
     subgraph s2[" "]
         direction TB
         kiro(["kiro-cli"])
-        auto(("② AutoLogifier<br/>convert the document<br/>to first-order logic"))
+        auto(("② AutoFormalizer<br/>convert the document<br/>to first-order logic"))
         cvc5a(["cvc5"])
         kiro <--> auto
         auto <--> cvc5a
@@ -367,7 +367,7 @@ flowchart LR
 
 The steps indicated in the diagram are:
 1.	Start with a document: a Wikipedia page, pasted text, an uploaded file, or one of the sample patients (a synthetic HL7 FHIR Bundle). A Wikipedia page is downloaded, its HTML parsed with Beautiful Soup and its body split into sentences with NLTK. [Appendix F](#appendix-f-ingestion-pipeline--adding-a-new-theory) describes how each kind of document is ingested.
-2.	The formalizer (the AutoLogifier in the diagram) translates the whole document into a first-order theory of the knowledge in it. A kiro-cli agent writes the theory and tests it with cvc5. An LLM prepares the inputs beforehand: the standalone sentences and the test set.
+2.	The formalizer (the AutoFormalizer in the diagram) translates the whole document into a first-order theory of the knowledge in it. A kiro-cli agent writes the theory and tests it with cvc5. An LLM prepares the inputs beforehand: the standalone sentences and the test set.
 3.	The chatbot takes the first-order theory from #2 and uses an LLM and a theorem prover (cvc5) to generate provably correct answers to the user’s questions.
 
 [Appendix C](#appendix-c-functional-architecture-of-the-formalizer) discusses the formalizer and [Appendix D](#appendix-d-functional-architecture-of-the-chatbot) discusses the chatbot.
