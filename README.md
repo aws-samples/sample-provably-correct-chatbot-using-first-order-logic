@@ -29,7 +29,7 @@ Human: How many deaths does diabetes account for annually?
 AI: Diabetes accounts for approximately 4.2 million deaths every year.
 ```
 
-For each of these responses from the chatbot (“AI: …”), the PoC in this project can logically verify that these statements follow from the article. If one of these answers weren’t provable, it would have answered “I don’t know”.
+For each of these responses from the chatbot (“AI: …”), the PoC in this project checks with a theorem prover that the answer follows from the theory it built from the article. When it cannot prove an answer, it says “I don’t know”. A proof is only as good as the theory and the translations into and out of logic; see [FAQ1](#faq1-will-this-solution-confabulate).
 
 Before describing how this project works, I will first set some context by introducing formal logics and then Neuro-symbolic AI, and finally show how they can together improve the accuracy of a chatbot.
 
@@ -87,7 +87,7 @@ The chatbot is an expert in one document. It has two main components:
 
     2.2.	The theorem prover determines the satisfiability of #2.1 in the context of the theory (#1).
 
-    2.3.	If #2.2 is satisfiable (there is a provably correct answer to the question) then an LLM translates the theorem prover’s answer back into natural language. If #2.2 is not satisfiable then the chatbot answers “I don’t know”.
+    2.3.	If #2.2 is satisfiable (the theory yields an answer to the question as translated) then an LLM translates the theorem prover’s answer back into natural language. If #2.2 is not satisfiable then the chatbot answers “I don’t know”.
 
 The web app lets you add documents, watch each build in its **Job Details** tab, and chat with any theory that is ready in a **Chat** tab of its own. For how each kind of source document (prose or an HL7 FHIR bundle) is ingested, see [Appendix F](#appendix-f-ingestion-pipeline--adding-a-new-theory).
 
@@ -266,7 +266,7 @@ The Hosted UI prefix `provably-correct-chatbot-<account>` is taken in this accou
 
 ### FAQ1: Will this solution confabulate?
 
-This chatbot combines a theorem prover and an agentic coding harness, so it still can confabulate. There is, however, a greatly reduced scope for confabulations compared to a traditional Generative AI chatbot. With this chatbot, the key to generating an answer is the theorem prover, which always produces provably correct answers (modulo the correctness of the underlying theory). The agentic coding harness (kiro-cli) builds that theory; at question time an LLM plays a relatively minor role: it just translates from natural language to first-order logic, and then from first-order logic back to natural language. This relies on the LLM’s ability to understand and generate relatively small pieces of code (first-order logic) which is a task that LLMs excel at.
+This chatbot combines a theorem prover and an agentic coding harness, so it still can confabulate. There is, however, a reduced scope for confabulations compared to a traditional Generative AI chatbot. With this chatbot, the key to generating an answer is the theorem prover, whose answers are proved from the underlying theory, so they are only as correct as that theory. The agentic coding harness (kiro-cli) builds that theory. At question time an LLM translates the question from natural language to first-order logic, and the prover's answer from first-order logic back to natural language. These are small pieces of code (first-order logic), which LLMs usually write well, but either translation can be wrong: a mistranslated question can be proved and answered, and a correct proof can be put into misleading words.
 
 The other potential for errors is in the underlying theory created by the auto formalizer: the theorem prover can only prove correctness relative to the theory (the axioms) that it is given. The auto formalizer only accepts a theory that is valid and that independently verifies against a test set of questions (see [Appendix C](#appendix-c-functional-architecture-of-the-auto-formalizer)), and it produces more correct theories when given a larger test set or a higher required ratio.
 
@@ -370,7 +370,7 @@ flowchart LR
 The steps indicated in the diagram are:
 1.	Start with a document: a Wikipedia page, pasted text, an uploaded file, or one of the sample patients (a synthetic HL7 FHIR Bundle). A Wikipedia page is downloaded, its HTML parsed with Beautiful Soup and its body split into sentences with NLTK. [Appendix F](#appendix-f-ingestion-pipeline--adding-a-new-theory) describes how each kind of document is ingested.
 2.	The auto formalizer (② AutoFormalizer in the diagram) translates the whole document into a first-order theory of the knowledge in it. A kiro-cli agent writes the theory and tests it with cvc5. An LLM prepares the inputs beforehand: the standalone sentences and the test set.
-3.	The chatbot takes the first-order theory from #2 and uses an LLM and a theorem prover (cvc5) to generate provably correct answers to the user’s questions.
+3.	The chatbot takes the first-order theory from #2 and uses an LLM and a theorem prover (cvc5) to answer the user’s questions from that theory, or to say “I don’t know” ([Appendix D](#appendix-d-functional-architecture-of-the-chatbot)).
 
 [Appendix C](#appendix-c-functional-architecture-of-the-auto-formalizer) discusses the auto formalizer and [Appendix D](#appendix-d-functional-architecture-of-the-chatbot) discusses the chatbot.
 
