@@ -74,7 +74,7 @@ if sys.argv[2] == "stay":
 def test_kill_process_tree_gets_orphans_and_other_groups(tmp_path, root_stays):
     out = tmp_path / "pids"
     # Test fixture: a fixed Python script under this interpreter.
-    root = subprocess.Popen([sys.executable, "-c", TREE, str(out),  # nosec B603 # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit.dangerous-subprocess-use-audit
+    root = subprocess.Popen([sys.executable, "-c", TREE, str(out),  # nosec B603 # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit, python.lang.security.audit.dangerous-subprocess-use-audit.dangerous-subprocess-use-audit
                              "stay" if root_stays else "exit"],
                             start_new_session=True)
     pids = read_pids(out, 3)

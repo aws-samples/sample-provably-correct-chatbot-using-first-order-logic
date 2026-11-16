@@ -460,7 +460,7 @@ def _run_kiro(ws: Path, message: str, resume: bool, timeout: float,
     # pipe under the reader thread, hanging the build.
     # argv list, no shell: kiro_command builds a fixed kiro-cli command line
     # and passes the message as one argument, so it cannot inject a command.
-    proc = subprocess.Popen(cmd, cwd=ws, env=_kiro_env(ws),  # nosec B603 # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit.dangerous-subprocess-use-audit
+    proc = subprocess.Popen(cmd, cwd=ws, env=_kiro_env(ws),  # nosec B603 # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit, python.lang.security.audit.dangerous-subprocess-use-audit.dangerous-subprocess-use-audit
                             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT, text=True, bufsize=1,
                             start_new_session=True,

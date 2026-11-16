@@ -161,8 +161,8 @@ def run(theory: str, fragment: str | None) -> dict:
     try:
         # argv list, no shell: the binary is cvc5_path() (validated) and the
         # last argument is the temp file written above.
-        proc = subprocess.run(  # nosec B603 # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit.dangerous-subprocess-use-audit
-            [cvc5, "--produce-models", "--incremental", path],  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args
+        proc = subprocess.run(  # nosec B603 # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit, python.lang.security.audit.dangerous-subprocess-use-audit.dangerous-subprocess-use-audit
+            [cvc5, "--produce-models", "--incremental", path],  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args, python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args
             capture_output=True, text=True, timeout=TIMEOUT_SECS, check=False)
     except subprocess.TimeoutExpired:
         return {"validity": "TIMEOUT",

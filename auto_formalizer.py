@@ -625,8 +625,8 @@ def run_cvc5(theory: str,
         try:
             # argv list, no shell: the binary is cvc5_path() (validated) and
             # the only other argument is the temp file this function wrote.
-            result = subprocess.run(  # nosec B603 # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit.dangerous-subprocess-use-audit
-                [cvc5_path(),  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args
+            result = subprocess.run(  # nosec B603 # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit, python.lang.security.audit.dangerous-subprocess-use-audit.dangerous-subprocess-use-audit
+                [cvc5_path(),  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args, python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args
                  "--produce-models",
                  "--incremental",
                  str(theory_path)],

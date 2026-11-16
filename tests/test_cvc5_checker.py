@@ -29,7 +29,7 @@ THEORY = """\
 
 def check(cwd, *args):
     # Test helper: runs the checker under this Python with test arguments.
-    proc = subprocess.run([sys.executable, str(CHECKER), *args], cwd=cwd,  # nosec B603 # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit.dangerous-subprocess-use-audit
+    proc = subprocess.run([sys.executable, str(CHECKER), *args], cwd=cwd,  # nosec B603 # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit, python.lang.security.audit.dangerous-subprocess-use-audit.dangerous-subprocess-use-audit
                           capture_output=True, text=True, check=False,
                           env={**os.environ, "CVC5_PATH": CVC5})
     return proc.returncode, (json.loads(proc.stdout) if proc.stdout.strip() else None)
