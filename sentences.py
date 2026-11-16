@@ -10,7 +10,7 @@ Code to handle sentences, including how to make individual sentences standalone
 and groups of sentences (this is mostly an issue with FHIR records)
 """
 from __future__ import annotations
-from typing import Optional, List, Union, Type
+from typing import Optional, List, Union, Type, Dict, Tuple
 import json
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, FIRST_COMPLETED
@@ -67,13 +67,13 @@ class Document(ABC):
 
     @staticmethod
     def document_runs(sentences: List[Sentence]) -> List[List[Sentence]]:
-        """ The consecutive runs of sentences that come from one document. """
-        def key(s: Sentence):
-            return (s.doc_class, id(getattr(s, "document", None)))
-
+        """
+        The consecutive runs of sentences that come from one document: text
+        sentences in a row form one run, and FHIR entries one run per patient.
+        """
         runs: List[List[Sentence]] = []
         for s in sentences:
-            if runs and key(s) == key(runs[-1][-1]):
+            if runs and s.run_key() == runs[-1][-1].run_key():
                 runs[-1].append(s)
             else:
                 runs.append([s])
@@ -310,9 +310,10 @@ class FHIRdocument (Document):
     @property
     def patient_entries(self) -> List[JSON]:
         """
-        Return the patient-info for this Document (one patient's records)
+        The patient-info for this Document (one patient's records). Every
+        FHIRsentence of the document shares this one list.
         """
-        return list(self._patient_entries)
+        return self._patient_entries
 
     def sentences(self) -> List[Sentence]:
         """
@@ -324,19 +325,13 @@ class FHIRdocument (Document):
     @classmethod
     def make_chunk_standalone_(cls, sentences: List[Sentence]) -> List[str]:
         """
-        Don't replicate the error checking.
+        One patient's entries: the patient JSON once, then each entry's JSON.
+        document_runs keeps patients apart, so a chunk never mixes two.
         """
-        print(f"FHIR::make_chunk_standalone_ {sentences}")
-        def key_fn(s: Sentence):
-            return json.dumps(s.patient_entries)
-        pes_2_sents = defaultdict(list)
-        for s in sentences:
-            pes_2_sents[key_fn(s)].append(s)
-        rv = flatten1(json.loads(pes_str) + [s.original for s in sentences]
-                      for pes_str, sentences in pes_2_sents.items())
-        rv = list(map(str,rv))
-        print(f"make_chunk_standalone_ -> {rv}")
-        return rv
+        keys = {s.run_key() for s in sentences}
+        assert len(keys) == 1, f"a FHIR chunk must be one patient's: {len(keys)} patients"
+        return ([json.dumps(e) for e in sentences[0].patient_entries] +
+                [s.original for s in sentences])
 
 
 class Sentence:
@@ -368,6 +363,10 @@ class Sentence:
     @property
     def doc_class(self):
         """ The class of the Document instance that owns this. """
+        return self._doc_class
+
+    def run_key(self):
+        """ Consecutive sentences with equal keys form one document run. """
         return self._doc_class
 
     @original.setter
@@ -447,17 +446,37 @@ ForcedLiteralDumper.add_representer(TextSentence,
 yaml.SafeLoader.add_constructor('!TextSentence', TextSentence.yaml_constructor)
 
 
+# One shared list per distinct patient, so a run file written with
+# yaml_dump holds each patient's entries once (YAML anchors and aliases)
+# and loading it shares them again. Keyed by the entries' canonical JSON.
+_SHARED_PATIENTS: Dict[str, List[JSON]] = {}
+
+
+def _shared_patient(patient_entries: Union[str, List[JSON]]) -> Tuple[str, List[JSON]]:
+    """
+    (key, shared list) for one patient's entries. Accepts the list or, as
+    run files written before the entries were shared stored it, a JSON string.
+    """
+    entries = json.loads(patient_entries) if isinstance(patient_entries, str) \
+        else patient_entries
+    key = json.dumps(entries, sort_keys=True)
+    return key, _SHARED_PATIENTS.setdefault(key, entries)
+
+
 class FHIRsentence(Sentence):
     """
-    An observation from a FHIR document
+    One non-Patient entry of a FHIR document. Its patient's entries are
+    shared with the document's other entries, not copied.
     """
     def __init__(self, original: str,
                  document: Optional[Document] = None,
                  document_class: Optional[Type] = None,
-                 patient_entries: Optional[List[JSON]] = None):
+                 patient_entries: Optional[Union[str, List[JSON]]] = None):
         assert exactly_one_is_non_none(document, document_class, patient_entries)
         super().__init__(original, document, document_class)
-        self._patient_entries: List[JSON] = patient_entries or document.patient_entries
+        self._patient_key, self._patient_entries = _shared_patient(
+            patient_entries if patient_entries is not None
+            else document.patient_entries)
         self._doc_class = FHIRdocument
 
     @property
@@ -468,13 +487,24 @@ class FHIRsentence(Sentence):
         """
         return self._patient_entries
 
+    def run_key(self):
+        return (self._doc_class, self._patient_key)
+
+    def to_dict(self) -> dict:
+        """
+        The stored theory's form (store._to_plain): the entry only. Its
+        patient is in the source document and the run file.
+        """
+        return {"_original": self.original}
+
     def yaml_representer(self, dumper):
         """
-        Convert into YAML representation
+        Convert into YAML representation. The shared patient list is written
+        in full the first time and as an alias after that.
         """
         return dumper.represent_mapping('!FHIRsentence', {
             'original': self.original,
-            'patient_entries': json.dumps(self.patient_entries)
+            'patient_entries': self._patient_entries
         })
 
     @classmethod
@@ -484,15 +514,15 @@ class FHIRsentence(Sentence):
         """
         fields = loader.construct_mapping(node, deep=True)
         return FHIRsentence(original=fields["original"],
-                            patient_entries=json.loads(fields["patient_entries"]))
+                            patient_entries=fields["patient_entries"])
 
     def __eq__(self, other):
         return isinstance(other, FHIRsentence) and \
                self.original == other.original and \
-               self.patient_entries == other.patient_entries
+               self._patient_key == other._patient_key
 
     def __hash__(self):
-        return hash((self.original, json.dumps(self.patient_entries)))
+        return hash((self.original, self._patient_key))
 
 
 ForcedLiteralDumper.add_representer(FHIRsentence,

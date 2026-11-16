@@ -6,10 +6,12 @@ Decontextualization ("make standalone") of TextDocument sentences: each
 sentence gets only the previous N raw sentences as context, and the rewrites
 run once each on a concurrency-capped thread pool.
 """
+import json
 import threading
 import time
 
 import pytest
+import yaml
 
 import globals as g
 import sentences as sm
@@ -165,3 +167,57 @@ def test_a_multi_line_rewrite_is_saved_on_one_line(tmp_path, monkeypatch):
     out = doc.compute_standalones()
     assert out == ["A. (rewritten)", "B. (rewritten)", "C. (rewritten)"]
     assert utils.load_lines(doc._standalones_path) == out
+
+
+# --- FHIR entries share their patient's entries ---------------------------
+
+def _patient(pid):
+    return [{"resource": {"resourceType": "Patient", "id": pid,
+                          "name": [{"family": f"Fam-{pid}"}]}}]
+
+
+def _entries(pid, n):
+    """n FHIRsentences of patient `pid`, each built from a fresh copy of its
+    entries (as a run file written before sharing would load them)."""
+    return [sm.FHIRsentence(json.dumps({"resource": {"resourceType": "Observation",
+                                                     "id": f"{pid}-{i}"}}),
+                            patient_entries=json.dumps(_patient(pid)))
+            for i in range(n)]
+
+
+def test_one_patients_entries_share_one_list():
+    a, b = _entries("p1", 2)
+    assert a.patient_entries is b.patient_entries
+
+
+def test_a_run_file_holds_each_patient_once_and_round_trips():
+    sents = _entries("p1", 5) + _entries("p2", 3)
+    text = utils.yaml_dump({"sentences": sents})
+    assert text.count("Fam-p1") == 1
+    assert text.count("Fam-p2") == 1
+    loaded = yaml.safe_load(text)["sentences"]
+    assert loaded == sents
+    assert loaded[0].patient_entries == _patient("p1")
+    assert loaded[0].patient_entries is loaded[4].patient_entries
+
+
+def test_old_run_files_with_a_json_string_per_entry_still_load():
+    old = ("sentences:\n- !FHIRsentence\n  original: '{\"id\": \"o1\"}'\n"
+           f"  patient_entries: '{json.dumps(_patient('p9'))}'\n")
+    [s] = yaml.safe_load(old)["sentences"]
+    assert s.patient_entries == _patient("p9")
+
+
+def test_each_patient_is_its_own_run_with_the_patient_once():
+    sents = _entries("p1", 3) + _entries("p2", 2)
+    runs = sm.Document.document_runs(sents)
+    assert [len(r) for r in runs] == [3, 2]
+    lines = sm.Document.make_standalone_lines(sents)
+    assert lines == ([json.dumps(e) for e in _patient("p1")] + [s.original for s in sents[:3]] +
+                     [json.dumps(e) for e in _patient("p2")] + [s.original for s in sents[3:]])
+    assert all(json.loads(line) for line in lines)  # JSON, not Python reprs
+
+
+def test_the_stored_theory_keeps_only_the_entry():
+    [s] = _entries("p1", 1)
+    assert s.to_dict() == {"_original": s.original}
