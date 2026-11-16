@@ -87,7 +87,7 @@ The chatbot is an expert in one document. It has two main components:
 
     2.3.	If #2.2 is satisfiable (there is a provably correct answer to the question) then an LLM translates the theorem prover’s answer back into natural language. If #2.2 is not satisfiable then the chatbot answers “I don’t know”.
 
-The web app lets you add documents, watch each build in its **Job Details** tab, and chat with any theory that is ready in a **Chat** tab of its own. For how each kind of source document (prose, an HL7 FHIR bundle, or an MDM file) is ingested, see [Appendix F](#appendix-f-ingestion-pipeline--adding-a-new-theory).
+The web app lets you add documents, watch each build in its **Job Details** tab, and chat with any theory that is ready in a **Chat** tab of its own. For how each kind of source document (prose or an HL7 FHIR bundle) is ingested, see [Appendix F](#appendix-f-ingestion-pipeline--adding-a-new-theory).
 
 ## System architecture
 
@@ -434,7 +434,7 @@ When you add a theory, the source document is **classified by type** and turned 
 ```mermaid
 flowchart TB
     doc([New source document])
-    classify{"Classify doc type<br/>(resolve_doc_type: JSON FHIR Bundle → fhir,<br/>else text; '---'-delimited MDM → mdm)"}
+    classify{"Classify doc type<br/>(resolve_doc_type: JSON FHIR Bundle → fhir,<br/>else text)"}
     doc --> classify
 
     classify -->|text| t1["Split into sentences (NLTK)"]
@@ -444,10 +444,7 @@ flowchart TB
     classify -->|fhir| f1["Parse the Bundle; split Patient<br/>vs non-Patient entries"]
     f1 --> fsent["one FHIRsentence per non-Patient entry<br/>(carries the patient entries as context)"]
 
-    classify -->|mdm| m1["Split on '---'; first block is a header"]
-    m1 --> msent["one MDMsentence per block"]
-
-    tsent & fsent & msent --> all["All sentences of the document, in order<br/>(make_standalone_lines)"]
+    tsent & fsent --> all["All sentences of the document, in order<br/>(make_standalone_lines)"]
     all --> qa["Test set over windows of sentences"]
     qa --> kiro["One kiro-cli session → theory.smt2,<br/>re-verified by the harness"]
     kiro --> out[("Theory YAML in S3<br/>(served by the chatbot)")]
@@ -456,14 +453,13 @@ flowchart TB
 #### Document types
 
 `subjects.subject_type()` keys off the `Subject`: a `synthea_path` means
-`fhir`, an `mdm_path` means `mdm`, otherwise `default` (text).
+`fhir`, otherwise `default` (text).
 `Document.load_for_subject()` dispatches to the matching class:
 
 | Type      | Class          | Unit of input                       | How "standalone" is produced                                                                 |
 |-----------|----------------|-------------------------------------|----------------------------------------------------------------------------------------------|
 | `default` | `TextDocument` | one NLTK-split **sentence**         | **LLM rewrite** (`make_text_sentence_standalone`) expands pronouns from preceding sentences; cached to `{subject}-standalone.txt` |
 | `fhir`    | `FHIRdocument` | one non-Patient **FHIR entry**      | **structural**: the patient entries are re-attached to each entry — no LLM                   |
-| `mdm`     | `MDMdocument`  | one `---`-delimited **block**       | a fixed **header** block is prepended to the blocks — no LLM                                   |
 
 #### Text (Wikipedia / pasted prose)
 
@@ -523,13 +519,6 @@ rejected: in `auto` mode it falls through to the text path as before. And
 `doc_type=text` is never JSON-validated — forcing text always treats the body
 as prose.
 
-#### MDM (a third format)
-
-`MDMdocument` (a `TextDocument` subclass) splits the raw file on `---`, treats
-the first block as a shared **header**, and emits one `MDMsentence` per
-remaining block. `make_chunk_standalone_()` prepends the header to the
-blocks, again a structural concatenation, not an LLM rewrite.
-
 #### After the sentences
 
 Regardless of type, all of the document's standalone units go to one build
@@ -541,8 +530,8 @@ The build's run file, and the theory YAML stored from it, is what the chatbot
 serves.
 
 Each `Sentence` subclass has its own YAML tag (`!TextSentence`,
-`!FHIRsentence`, `!MDMsentence`) so sentences serialize with their
-type-specific context (standalone text for text/MDM, `patient_entries` for
+`!FHIRsentence`) so sentences serialize with their
+type-specific context (standalone text for text, `patient_entries` for
 FHIR) in the run file.
 
 ## License
