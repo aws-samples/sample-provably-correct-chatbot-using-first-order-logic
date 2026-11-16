@@ -116,6 +116,7 @@ uv run pytest tests                              # formalizer, kiro engine, proc
 (cd frontend && npm test)                         # Vitest, runs once
 ```
 
-The web-service tests need its extra dependencies:
-`uv pip install fastapi httpx itsdangerous 'PyJWT[crypto]'`.
+The web-service tests need its extra dependencies, at the versions the image
+runs (the hash-pinned runtime lock constrains them):
+`uv pip install fastapi httpx itsdangerous 'PyJWT[crypto]' -c cdk/docker/requirements.lock`.
 None of the tests call Bedrock, kiro-cli or cvc5.
