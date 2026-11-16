@@ -20,7 +20,9 @@ Nothing here imports boto3/globals/otel, so the agent-side checker starts fast.
 """
 from __future__ import annotations
 
+import os
 import re
+from pathlib import Path
 from typing import Callable, List, Optional, Tuple
 
 NEWLINE = "\n"  # used by doctests below
@@ -30,6 +32,22 @@ SAT = "SAT"
 UNSAT = "UNSAT"
 UNKNOWN = "UNKNOWN"
 ERROR = "ERROR"
+
+
+def cvc5_path() -> str:
+    """
+    The cvc5 binary to run: CVC5_PATH (the image sets /usr/local/bin/cvc5),
+    else ~/bin/cvc5. It is used as argv[0] with no shell, so it must be an
+    absolute path to an executable file named cvc5*; anything else raises
+    rather than run some other program.
+    """
+    raw = os.environ.get("CVC5_PATH") or str(Path.home() / "bin" / "cvc5")
+    path = Path(raw)
+    if not (path.is_absolute() and path.name.startswith("cvc5")
+            and path.is_file() and os.access(path, os.X_OK)):
+        raise ValueError(f"CVC5_PATH must be an absolute path to the cvc5 "
+                         f"executable, got {raw!r}")
+    return str(path)
 
 
 def find_spans(s: str, span_pattern: str) -> List[Tuple[str, Tuple[int, int]]]:

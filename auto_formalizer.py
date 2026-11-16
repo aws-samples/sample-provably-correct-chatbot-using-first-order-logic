@@ -47,7 +47,7 @@ import globals as g # don't do "from globals import X, Y" ,don't want another po
 from prompts import get_system_prompt, get_prompt
 from otel import start_span
 from utils import (extract_code_blocks, extract_tag, strip,
-                   remove_empty_lines, NEWLINE, HOME, get_matching_files,
+                   remove_empty_lines, NEWLINE, get_matching_files,
                    print_multiline,
                    Sat, dump_dict, do_inference, set_max_num_files,
                    starmap_with_dupes, Statistics, get_global_stats,
@@ -60,7 +60,7 @@ from questions_similarity import QuestionSimilarity
 # (kiro_tools/cvc5_checker.py) so both judge a theory identically.
 from cvc5_script import (
     find_and_remove_set_logic_spans, find_and_remove_set_option_spans,
-    build_cvc5_script, classify_cvc5_output)
+    build_cvc5_script, classify_cvc5_output, cvc5_path)
 
 
 set_max_num_files(16*1024)
@@ -623,8 +623,10 @@ def run_cvc5(theory: str,
                 stderr=stderr)
 
         try:
-            result = subprocess.run(
-                [os.environ.get("CVC5_PATH", f"{HOME}/bin/cvc5"),
+            # argv list, no shell: the binary is cvc5_path() (validated) and
+            # the only other argument is the temp file this function wrote.
+            result = subprocess.run(  # nosec B603 # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit.dangerous-subprocess-use-audit
+                [cvc5_path(),  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args
                  "--produce-models",
                  "--incremental",
                  str(theory_path)],

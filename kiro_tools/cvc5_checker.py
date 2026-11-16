@@ -44,9 +44,8 @@ from pathlib import Path
 
 # cvc5_script.py lives in the repo root, one level up from kiro_tools/.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from cvc5_script import build_cvc5_script, classify_cvc5_output  # noqa: E402
+from cvc5_script import build_cvc5_script, classify_cvc5_output, cvc5_path  # noqa: E402
 
-CVC5_PATH = os.environ.get("CVC5_PATH", f"{Path.home()}/bin/cvc5")
 TIMEOUT_SECS = float(os.environ.get("CHATBOT_CVC5_TIMEOUT", "60"))
 MAX_STREAM_CHARS = 1500  # stderr shown to the agent
 MAX_VALUES_CHARS = 2000  # the "values" an ask returns
@@ -151,13 +150,19 @@ def answer_values(model: str | None, fragment: str) -> str:
 
 
 def run(theory: str, fragment: str | None) -> dict:
+    try:
+        cvc5 = cvc5_path()
+    except ValueError as ex:
+        return {"validity": "ERROR", "detail": str(ex)}
     script = build_cvc5_script(theory, fragment)
     with tempfile.NamedTemporaryFile("w", suffix=".smt2", delete=False) as f:
         f.write(script)
         path = f.name
     try:
-        proc = subprocess.run(
-            [CVC5_PATH, "--produce-models", "--incremental", path],
+        # argv list, no shell: the binary is cvc5_path() (validated) and the
+        # last argument is the temp file written above.
+        proc = subprocess.run(  # nosec B603 # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit.dangerous-subprocess-use-audit
+            [cvc5, "--produce-models", "--incremental", path],  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args
             capture_output=True, text=True, timeout=TIMEOUT_SECS, check=False)
     except subprocess.TimeoutExpired:
         return {"validity": "TIMEOUT",
