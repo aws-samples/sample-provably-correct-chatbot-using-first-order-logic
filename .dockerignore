@@ -19,3 +19,5 @@ venv
 # still dropped by the **/.DS_Store rule above.
 runs
 *.log
+# The root test suite (pytest) runs in development and CI, never in the image.
+tests

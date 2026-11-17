@@ -216,6 +216,8 @@ export class ChatbotStack extends cdk.Stack {
         'frontend/node_modules',
         'frontend/build',
         'runs',
+        // The root test suite; it never runs in the image (as .dockerignore).
+        'tests',
         '**/__pycache__',
         '**/.DS_Store',
         '.git',
