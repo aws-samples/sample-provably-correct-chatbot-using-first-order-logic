@@ -1,0 +1,4 @@
+default:
+  generate_q_and_a: "You are an expert at understanding complicated documents"
+fhir:
+  generate_q_and_a: "You are an expert at understanding medical records, particularly HL7 FHIR"

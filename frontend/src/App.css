@@ -1,0 +1,1244 @@
+:root {
+  --color-accent: #007bff;
+  --color-accent-text: #ffffff;
+  --color-bot-bg: #f1f1f1;
+  --color-bot-text: #1a1a1a;
+  --color-unverified-bg: #f3f3f3;
+  --color-unverified-text: #6b6b6b;
+  --color-error-bg: #fdecea;
+  --color-error-text: #8a1c12;
+  --color-error-border: #f5c6cb;
+  --color-verified: #1a7f37;
+  --color-pending-text: #6b6b6b;
+  --color-divider: #dddddd;
+  --bubble-max-width: 70%;
+  --radius: 8px;
+  /* status pill colors (tabs 3/4) */
+  --color-status-ready: #1a7f37;
+  --color-status-building: #9a6700;
+  --color-status-running: #0969da;
+  --color-status-queued: #6b6b6b;
+  --color-status-failed: #8a1c12;
+  --color-status-cancelled: #57606a;
+  --color-panel-bg: #ffffff;
+  --color-code-bg: #f6f8fa;
+  --color-code-text: #1a1a1a;
+  /* current-theory row highlight (Theories tab): soft accent-tinted fill with
+     a matching rounded outline — good contrast against white, easy on the eye */
+  --color-current-row-bg: #e7f1ff;
+  --color-current-row-border: #4a90e2;
+}
+
+.App {
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+}
+
+.title-bar {
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  padding: 20px;
+  font-size: 24px;
+  font-weight: bold;
+  text-align: center;
+}
+
+.chat-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* allow .messages to scroll inside a flex column */
+}
+
+.messages {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.message {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  max-width: var(--bubble-max-width);
+  width: fit-content;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.message.user {
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  margin-left: auto;
+}
+
+.message.bot {
+  background: var(--color-bot-bg);
+  color: var(--color-bot-text);
+}
+
+/* "I don't know" is visually distinct from a verified answer. */
+.message.bot.unverified {
+  background: var(--color-unverified-bg);
+  color: var(--color-unverified-text);
+  font-style: italic;
+}
+
+.message.pending {
+  background: var(--color-bot-bg);
+  color: var(--color-pending-text);
+  font-style: italic;
+}
+
+.message.error {
+  background: var(--color-error-bg);
+  color: var(--color-error-text);
+  border: 1px solid var(--color-error-border);
+}
+
+.badge {
+  display: inline-block;
+  width: fit-content;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.badge-verified {
+  color: var(--color-verified);
+}
+
+.badge-unverified {
+  color: var(--color-unverified-text);
+}
+
+.input-area {
+  padding: 20px;
+  border-top: 1px solid var(--color-divider);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* Why the composer is disabled; takes its own row above the controls. */
+.composer-hint {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.input-area input {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid var(--color-divider);
+  border-radius: 4px;
+}
+
+.input-area button {
+  padding: 10px 20px;
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.input-area input:disabled,
+.input-area button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Usable from narrow mobile widths. */
+@media (max-width: 600px) {
+  :root {
+    --bubble-max-width: 90%;
+  }
+
+  .title-bar {
+    font-size: 20px;
+    padding: 14px;
+  }
+
+  .messages,
+  .input-area {
+    padding: 12px;
+  }
+
+  .input-area {
+    flex-wrap: wrap;
+  }
+
+  .input-area input {
+    flex-basis: 100%;
+  }
+}
+
+/* --- Tab shell ---------------------------------------------------------- */
+.tab-bar {
+  display: flex;
+  gap: 2px;
+  background: var(--color-bot-bg);
+  border-bottom: 1px solid var(--color-divider);
+  padding: 0 12px;
+}
+
+.tab {
+  padding: 12px 18px;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: var(--color-bot-text);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.tab.active {
+  border-bottom-color: var(--color-accent);
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.tab-badge {
+  margin-left: 8px;
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: 12px;
+}
+
+.tab-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+/* --- Chat tab (selector) ----------------------------------------------- */
+.chat-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.theory-select-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--color-divider);
+  flex-wrap: wrap;
+}
+
+.theory-select-row select {
+  padding: 6px 8px;
+  border: 1px solid var(--color-divider);
+  border-radius: 4px;
+}
+
+.current-theory-label {
+  margin: 0;
+  font-size: 15px;
+  color: inherit;
+}
+
+.current-theory-label strong {
+  font-weight: 600;
+  color: var(--color-accent);
+}
+
+.theory-subject {
+  color: var(--color-unverified-text);
+  font-size: 14px;
+}
+
+/* --- Current theory tab ------------------------------------------------- */
+/* --- Theories tab ------------------------------------------------------- */
+.theories-tab,
+.jobs-tab {
+  padding: 16px 20px;
+}
+
+.theories-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.theories-header button,
+.add-theory-form button {
+  padding: 8px 14px;
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.add-theory-form {
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin: 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.add-theory-form .field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.add-theory-form input[type='text'],
+.add-theory-form #theory-name,
+.doc-textarea {
+  padding: 8px;
+  border: 1px solid var(--color-divider);
+  border-radius: 4px;
+  font-family: inherit;
+}
+
+.doc-textarea {
+  resize: vertical;
+}
+
+.mode-toggle {
+  display: flex;
+  gap: 18px;
+}
+
+.theories-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin-top: 12px;
+}
+
+.theories-table th,
+.theories-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--color-divider);
+  font-size: 14px;
+}
+
+/* Highlight the "current" theory (the one selected in the Chatbot tab) with a
+   rounded rectangle: fill every cell in the row, round the row's outer corners
+   on the first/last cells, and draw a top/bottom accent border on all cells
+   plus left/right borders on the end cells so the outline is a continuous
+   rounded rectangle. border-collapse: separate (above) is what lets the corner
+   radius render. */
+.theories-table tr.current-theory-row td {
+  background: var(--color-current-row-bg);
+  border-top: 1px solid var(--color-current-row-border);
+  border-bottom: 1px solid var(--color-current-row-border);
+}
+.theories-table tr.current-theory-row td:first-child {
+  border-left: 1px solid var(--color-current-row-border);
+  border-top-left-radius: var(--radius);
+  border-bottom-left-radius: var(--radius);
+}
+.theories-table tr.current-theory-row td:last-child {
+  border-right: 1px solid var(--color-current-row-border);
+  border-top-right-radius: var(--radius);
+  border-bottom-right-radius: var(--radius);
+}
+
+.status-pill {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-accent-text);
+  text-transform: capitalize;
+}
+
+.status-ready { background: var(--color-status-ready); }
+.status-building { background: var(--color-status-building); }
+.status-running { background: var(--color-status-running); }
+.status-queued { background: var(--color-status-queued); }
+.status-failed { background: var(--color-status-failed); }
+.status-finished { background: var(--color-status-ready); }
+.status-cancelled { background: var(--color-status-cancelled); }
+
+/* --- Jobs tab ----------------------------------------------------------- */
+/* The header and every job row share ONE grid: each row (li) and its head
+   join it with `subgrid`, so Status, Theory and Progress are as wide as their
+   widest cell in any row and line up vertically. Columns: status, theory,
+   progress, a flexible spacer, actions, duration. */
+.jobs-grid {
+  display: grid;
+  grid-template-columns:
+    max-content minmax(0, max-content) minmax(0, max-content)
+    minmax(0, 1fr) max-content max-content;
+  column-gap: 12px;
+}
+
+.jobs-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  row-gap: 8px;
+}
+
+.job-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.job-head {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: center;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+/* Expanded detail spans the full row. */
+.job-detail { grid-column: 1 / -1; }
+
+.job-name,
+.job-progress {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.job-name { font-weight: 600; }
+.job-progress { color: var(--color-unverified-text); font-size: 14px; }
+.job-head > .status-pill { justify-self: start; }
+
+.job-actions {
+  grid-column: 5;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.job-time {
+  grid-column: 6;
+  min-width: 72px;
+  text-align: right;
+  color: var(--color-unverified-text);
+  font-size: 13px;
+}
+
+/* Column labels above the job rows, on the same grid. The transparent
+   border matches the rows' 1px border so the labels sit over their cells. */
+.jobs-header {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: center;
+  padding: 4px 12px;
+  border: 1px solid transparent;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-unverified-text);
+}
+.jobs-header .col-actions { grid-column: 5; }
+.jobs-header .col-duration { grid-column: 6; min-width: 72px; text-align: right; }
+
+/* A text link rendered as a button (keeps keyboard + click semantics). */
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: var(--color-accent);
+  font-size: 13px;
+  font-family: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  text-decoration: none;
+}
+
+/* Destructive "Kill" action: same text-button shape as .link-button but in the
+   error color so it reads as destructive. Overrides .link-button's accent. */
+.kill-button {
+  color: var(--color-error-text);
+}
+
+.kill-button:disabled {
+  color: var(--color-status-failed);
+  opacity: 0.6;
+  cursor: default;
+  text-decoration: none;
+}
+
+/* Destructive "Delete" action in the Theories table Actions column. A small
+   outlined button in the error color so it reads as destructive without
+   dominating the row. */
+.delete-button {
+  background: transparent;
+  color: var(--color-error-text);
+  border: 1px solid var(--color-error-text);
+  border-radius: 4px;
+  padding: 2px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.delete-button:hover:not(:disabled) {
+  background: var(--color-error-text);
+  color: #fff;
+}
+
+.delete-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.theory-actions {
+  white-space: nowrap;
+}
+
+/* Row of action buttons (Rebuild / Delete) in the Theories tab Actions cell. */
+.action-buttons {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* Rebuild is a constructive action, so it uses the accent color (outlined)
+   rather than the error color the Delete button uses. */
+.rebuild-button {
+  background: transparent;
+  color: var(--color-accent);
+  border: 1px solid var(--color-accent);
+  border-radius: 4px;
+  padding: 2px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.rebuild-button:hover:not(:disabled) {
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+}
+
+.rebuild-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Cancel stops an in-progress build (moving the theory to Cancelled). It is a
+   "stop", not a destructive delete, so it uses the amber building color
+   (outlined) -- distinct from the red Delete and the accent Rebuild. */
+.cancel-button {
+  background: transparent;
+  color: var(--color-status-building);
+  border: 1px solid var(--color-status-building);
+  border-radius: 4px;
+  padding: 2px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.cancel-button:hover:not(:disabled) {
+  background: var(--color-status-building);
+  color: #fff;
+}
+
+.cancel-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Artifacts column: a row of small buttons opening the source-document and
+   SMT-LIB-theory viewer modals. Neutral (divider-outlined) so they read as
+   "view" affordances, distinct from the colored Rebuild/Delete/Cancel. */
+.theory-artifacts {
+  white-space: nowrap;
+}
+
+.artifact-buttons {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.artifact-button {
+  background: transparent;
+  color: var(--color-bot-text);
+  border: 1px solid var(--color-divider);
+  border-radius: 4px;
+  padding: 2px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.artifact-button:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.artifact-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.job-detail {
+  padding: 0 12px 12px;
+}
+
+.job-log {
+  background: var(--color-code-bg);
+  color: var(--color-code-text);
+  border: 1px solid var(--color-divider);
+  border-radius: 6px;
+  padding: 10px;
+  max-height: 30vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+/* --- Logs modal --------------------------------------------------------- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 1000;
+}
+
+.modal {
+  background: var(--color-panel-bg);
+  color: var(--color-bot-text);
+  border-radius: var(--radius);
+  width: min(900px, 100%);
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+/* Artifact viewer (source document / SMT-LIB theory) is deliberately large:
+   80% of the viewport in both dimensions so long documents are comfortable to
+   read. Overrides the default .modal width/height. */
+.artifact-modal {
+  width: 80vw;
+  height: 80vh;
+  max-height: 80vh;
+}
+
+.artifact-body {
+  flex: 1;
+  min-height: 0;
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--color-divider);
+}
+
+.modal-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.modal-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  font-size: 24px;
+  line-height: 1;
+  color: var(--color-unverified-text);
+  cursor: pointer;
+}
+
+.modal-close:hover {
+  color: var(--color-bot-text);
+}
+
+.modal-log {
+  margin: 0;
+  flex: 1;
+  overflow: auto;
+  background: var(--color-code-bg);
+  color: var(--color-code-text);
+  padding: 14px 16px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  border-bottom-left-radius: var(--radius);
+  border-bottom-right-radius: var(--radius);
+}
+
+.modal .error-text {
+  margin: 10px 16px 0;
+}
+
+/* --- Shared helpers ----------------------------------------------------- */
+.muted { color: var(--color-unverified-text); }
+.small { font-size: 13px; }
+.error-text { color: var(--color-error-text); }
+
+/* The sentence count in the Theories table is a link-styled button that opens
+   the sentence-list modal. Looks like a link, keeps keyboard/button a11y. */
+.sentence-count-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--color-link, #3b82f6);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.sentence-count-link:hover {
+  text-decoration: none;
+}
+
+/* The sentences modal body: a two-column table (original vs decontextualized),
+   scrollable, with a sticky header. */
+.sentence-table-wrap {
+  flex: 1;
+  overflow: auto;
+  background: var(--color-panel-bg);
+  color: var(--color-bot-text);
+  border-bottom-left-radius: var(--radius);
+  border-bottom-right-radius: var(--radius);
+}
+.sentence-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.sentence-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  padding: 10px 14px;
+  background: var(--color-panel-bg);
+  color: var(--color-unverified-text);
+  font-weight: 600;
+  border-bottom: 2px solid var(--color-divider);
+}
+.sentence-table td {
+  padding: 8px 14px;
+  vertical-align: top;
+  border-bottom: 1px solid var(--color-divider);
+}
+/* Original and decontextualized columns share the remaining width evenly. */
+.sentence-table th:not(.sentence-col-num),
+.sentence-table td:not(.sentence-col-num) {
+  width: 50%;
+}
+/* FHIR sentences are long JSON chunks with few break opportunities; wrap them
+   inside the column instead of overflowing the modal horizontally. */
+.sentence-table td:not(.sentence-col-num) {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.sentence-col-num {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+  user-select: none;
+}
+.sentence-table tbody tr:last-child td {
+  border-bottom: none;
+}
+/* Highlight a decontextualized cell that actually differs from the original,
+   so the rewrites stand out. Uses an existing theme surface, so it stays
+   readable with the cell's inherited text color. */
+.sentence-changed {
+  background: var(--color-code-bg);
+}
+
+/* Red inline warning for a non-Wikipedia URL in the "Add theory" form: the
+   page will likely not parse. Uses the shared error color (bolder than .muted)
+   so it reads as a caution without being a hard validation error. */
+.warning-text {
+  color: var(--color-error-text);
+  font-size: 13px;
+  font-weight: 600;
+  margin: 6px 0 0;
+}
+
+/* --- Lucky-question picker (speech bubble above the button) ------------ */
+/* The anchor wraps the "I'm Feeling Lazy" button so the bubble can be
+   positioned directly above it. */
+.lucky-bubble-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+/* The bubble itself: absolutely positioned above the button, starts shifted
+   down + transparent, slides up into place when `.lucky-bubble--shown` is
+   added on mount. */
+.lucky-bubble {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  right: 0;
+  width: min(420px, 80vw);
+  max-height: 320px;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bot-bg);
+  color: var(--color-bot-text);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.28);
+  z-index: 50;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 160ms ease, transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transform-origin: bottom right;
+}
+
+.lucky-bubble--shown {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.lucky-bubble-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-divider);
+}
+
+.lucky-bubble-title {
+  font-weight: 600;
+  color: var(--color-bot-text);
+}
+
+.lucky-bubble-close {
+  margin-left: auto;
+  background: transparent;
+  color: var(--color-bot-text);
+  border: none;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+/* Downward-pointing tail at the bottom-right, so the bubble reads as rising
+   from the button beneath it. Two stacked triangles fake a 1px border. */
+.lucky-bubble-tail {
+  position: absolute;
+  top: 100%;
+  right: 28px;
+  width: 0;
+  height: 0;
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-top: 9px solid var(--color-divider);
+}
+.lucky-bubble-tail::after {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: -8px;
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 8px solid var(--color-bot-bg);
+}
+
+.lucky-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lucky-item {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  background: var(--color-bot-bg);
+  color: var(--color-bot-text);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.lucky-item:hover {
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  border-color: var(--color-accent);
+}
+
+.lucky-empty {
+  padding: 16px;
+}
+
+/* Respect reduced-motion: show the bubble instantly, no slide. */
+@media (prefers-reduced-motion: reduce) {
+  .lucky-bubble {
+    transition: none;
+    transform: none;
+  }
+}
+
+/* --- Job Introspection tab ---------------------------------------------- */
+.introspection-tab {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.introspection-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.introspection-head h3 {
+  margin: 0;
+}
+
+/* Status colours: one variable per status, reused by boxes, swatches and the
+   modal's status pill. Boxes keep dark text on a light background; the colour
+   is a left border plus the printed status, never colour alone. */
+.unit-status-pending { --unit-color: #b8bfc6; }
+.unit-status-queued { --unit-color: var(--color-status-queued); }
+.unit-status-running { --unit-color: var(--color-status-running); }
+.unit-status-succeeded { --unit-color: var(--color-status-ready); }
+.unit-status-failed { --unit-color: var(--color-status-failed); }
+.unit-status-stopped { --unit-color: var(--color-status-cancelled); }
+
+.status-pill[class*='unit-status-'] {
+  background: var(--unit-color);
+}
+
+/* One build: summary, phase stepper, sessions, and the views below. */
+.build-summary {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius);
+  background: var(--color-panel-bg);
+  color: var(--color-bot-text);
+}
+
+.build-summary-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.build-phases {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+  counter-reset: phase;
+}
+
+/* The step number and a check mark carry the state, not colour alone. */
+.build-phase {
+  counter-increment: phase;
+  color: var(--color-unverified-text);
+}
+
+.build-phase::before {
+  content: counter(phase) '. ';
+}
+
+.build-phase.done::before {
+  content: '✓ ';
+}
+
+.build-phase.done {
+  color: var(--color-verified);
+}
+
+.build-phase.current {
+  color: var(--color-bot-text);
+  font-weight: 600;
+}
+
+.build-facts {
+  margin: 6px 0 0;
+}
+
+.build-sessions {
+  margin-top: 12px;
+}
+
+.build-view-panel {
+  overflow: auto;
+  padding: 10px 0 16px;
+  min-height: 0;
+  flex: 1;
+}
+
+.unit-view-tab:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.unit-view-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 16px 0;
+  border-bottom: 1px solid var(--color-divider);
+}
+
+.unit-view-tab {
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: none;
+  padding: 6px 12px;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+  color: var(--color-bot-text);
+}
+
+.unit-view-tab.active {
+  border-color: var(--color-divider);
+  background: var(--color-code-bg);
+  font-weight: 600;
+}
+
+.unit-view-tab:disabled {
+  color: var(--color-unverified-text);
+  cursor: default;
+}
+
+.unit-note {
+  margin: 8px 16px 0;
+}
+
+.unit-qas {
+  overflow: auto;
+  padding: 10px 16px 16px;
+}
+
+.unit-qas-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.unit-qas-table th,
+.unit-qas-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-divider);
+}
+
+.unit-qas-table th:first-child,
+.unit-qas-table td:first-child {
+  width: 2.5em;
+  color: var(--color-unverified-text);
+}
+
+.unit-qas-table th:last-child,
+.unit-qas-table td:last-child {
+  width: 7em;
+  white-space: nowrap;
+}
+
+.qa-correct {
+  color: var(--color-verified);
+  font-weight: 600;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* --- Build parameters dialog -------------------------------------------- */
+.build-params-modal {
+  width: min(720px, 100%);
+}
+
+.build-params-form {
+  overflow-y: auto;
+  padding: 12px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.build-params-group {
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius);
+  padding: 8px 12px 12px;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px 16px;
+}
+
+.build-params-group legend {
+  font-weight: 600;
+  font-size: 13px;
+  padding: 0 4px;
+}
+
+.bp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.bp-field label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.bp-field input,
+.bp-field select {
+  padding: 4px 6px;
+  font-size: 13px;
+}
+
+.bp-field input[aria-invalid='true'] {
+  border-color: var(--color-status-failed);
+}
+
+.bp-off label {
+  color: var(--color-unverified-text);
+}
+
+.bp-help {
+  line-height: 1.3;
+}
+
+.bp-error {
+  color: var(--color-status-failed);
+  font-size: 12px;
+}
+
+.build-params-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.build-params-actions .spacer {
+  flex: 1;
+}
+
+.job-params {
+  word-break: break-word;
+}
+
+.unit-log-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px 0;
+}
+
+.show-inactive-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  margin-left: auto;
+  color: var(--color-unverified-text);
+}
+
+/* Per-job Job Introspection tabs: a label button plus a close (×) button. */
+.tab-bar {
+  overflow-x: auto;
+}
+
+.closable-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px 0 0;
+  white-space: nowrap;
+}
+
+.closable-tab-label {
+  padding: 12px 4px 12px 14px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab-close {
+  background: none;
+  border: none;
+  border-radius: 4px;
+  width: 22px;
+  height: 22px;
+  line-height: 1;
+  font-size: 16px;
+  color: var(--color-unverified-text);
+  cursor: pointer;
+}
+
+.tab-close:hover,
+.tab-close:focus-visible {
+  background: var(--color-divider);
+  color: var(--color-bot-text);
+}
+
+.job-introspect-link {
+  padding: 0;
+  font: inherit;
+  text-align: left;
+}

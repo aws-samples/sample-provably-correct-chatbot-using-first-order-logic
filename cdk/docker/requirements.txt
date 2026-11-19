@@ -1,0 +1,38 @@
+# Python runtime deps for the chatbot container.
+# Derived from the third-party imports across the repo-root modules that
+# chatbot_backend pulls in (auto_formalizer -> otel/prompts/utils/params).
+#
+# NOTE: otel.py imports `langfuse` and `opentelemetry` UNCONDITIONALLY at
+# module load, even though globals.DO_USE_OTEL is False. So these packages
+# must be INSTALLED (import-time), but no Langfuse keys are needed at runtime.
+#
+# Versions are intentionally loose (no lockfile in the repo yet). Pin these
+# once you have a working deploy to make the image reproducible.
+
+# Web layer
+fastapi
+uvicorn[standard]
+
+# AWS / Bedrock LLM access
+boto3
+strands-agents
+
+# Theory + document processing
+pyyaml
+nltk
+beautifulsoup4
+numpy
+requests
+
+# Config / CLI / tracing (imported at module load)
+python-dotenv
+prompt_toolkit
+colorama
+langfuse
+opentelemetry-api
+opentelemetry-sdk
+
+# App-level Cognito auth: verify Cognito OIDC tokens (JWKS) and sign the
+# app's own session cookie.
+python-jose[cryptography]
+itsdangerous

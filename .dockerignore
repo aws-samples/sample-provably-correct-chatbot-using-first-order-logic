@@ -1,0 +1,21 @@
+# Keep the Docker build context (repo root) small. The CDK fromAsset `exclude`
+# mirrors this, but .dockerignore also applies to a plain `docker build`.
+cdk/node_modules
+cdk/cdk.out
+frontend/node_modules
+frontend/build
+**/__pycache__
+**/*.pyc
+**/.DS_Store
+.git
+.venv
+venv
+# Local run files and large data. The deployed chatbot serves theories from
+# its store, so nothing under runs/ is needed in the image.
+# NOTE: the Synthea sample FHIR Bundles under
+# sentences/synthea_sample_data_fhir_dstu2_latest/ are intentionally NOT
+# excluded -- they ship in the image so the "Add theory" form can offer them as
+# pick-from-a-list sources (see store.list_sample_patients). Their .DS_Store is
+# still dropped by the **/.DS_Store rule above.
+runs
+*.log

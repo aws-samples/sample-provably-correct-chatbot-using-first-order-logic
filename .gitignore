@@ -1,0 +1,37 @@
+**/*.pyc
+**/*.out
+**/nohup*
+**/__pycache__/
+
+# OS cruft
+**/.DS_Store
+
+# Node / CDK build artifacts
+**/node_modules/
+cdk/cdk.out/
+frontend/build/
+
+# CDK cached context (per-account AZ lookups, not portable)
+cdk/cdk.context.json
+
+# Local build run files and large input data.
+runs/
+sentences/
+# The Synthea sample data ships as a single zip (expanded at Docker build time);
+# track the zip even though sentences/ is otherwise ignored. The expanded dir
+# (sentences/synthea_sample_data_fhir_dstu2_latest/) stays ignored.
+!sentences/synthea_sample_data_fhir_dstu2_latest.zip
+0a4e2f71-*.yaml
+5ae03cd1-*.yaml
+633494fe-*.yaml
+ace1bb03-*.yaml
+summary.yaml
+
+# Tooling output
+repolinter.txt
+
+# Local agent/editor config
+.kiro/
+
+# Transient CodeCommit source-zip build artifact
+ndl-src.zip

@@ -1,0 +1,336 @@
+default:
+  convert_question_to_logical_form: |
+    I want you to convert a natural language question into a logical form.
+    If the logical form is satisfiable then the resulting model must be
+    an answer to the question.
+
+    Here is the question:
+
+    ```question
+    {nat_lang_question}
+    ```
+
+    And here is the theory against which the question is being asked:
+
+    ```theory
+    {theory}
+    ```
+
+    Return the resulting logical forms as
+    
+    ```result
+    ...
+    ```
+  get_model_output_2_nat_lang: |
+    I want you to translate an output from cvc5's (get-model) command into an answer
+    to a question.
+
+    First, here is the background theory:
+    ```
+    {valid_theory}
+    ```
+
+    Against this theory, I have asked this question:
+
+    ```{question}```
+
+    which was converted into a logical representation:
+
+    ```
+    {q_logical_form}
+    ```
+
+    I ran cvc5 against the concatenation of the theory and the logical form
+    of the question. I then used cvc5's `(get-model)` command to understand
+    the answer to the question and got this output:
+
+    ```
+    {get_model_output}
+    ```
+
+    Use what you know about how cvc5 works and, in particular, what
+    the output of `get-model` means, to convert the output of
+    `get-model` into a natural language answer to the question. You
+    shouldn't mention cvc5 or logical forms in your answer, just give
+    the answer as if you were a human expert.
+
+    CRITICAL GROUNDING RULES — your answer must be provably correct, so:
+    - Base your answer ONLY on the `get-model` output and the background
+      theory above. Do NOT add any facts from your own general knowledge,
+      even if you are confident they are true and even if the question is
+      about a well-known topic.
+    - If the `get-model` output does not actually contain information that
+      answers the question — for example the model is empty, trivial, or
+      only satisfies the theory without pinning down what was asked — then
+      you do NOT know the answer. In that case your answer must be exactly
+      `I don't know` and nothing else.
+    - Never explain what the answer would be "in general", never offer a
+      disclaimer-wrapped outside fact, and never guess. A clean
+      `I don't know` is always preferred over an ungrounded answer.
+
+    You must enclose the answer in <answer>...</answer>
+  make_text_sentence_standalone: |
+    I want you take take a set of `n` sentences and the `n+1`th sentence.
+    You must rewrite and return the `n+1`th sentence so that it stands alone
+    without the previous context. For example, pronouns like "it" must
+    be expanded out so the sentence makes sense on its own.
+
+    The previous `n` sentences are:
+    ```
+    {previous_sentences}
+    ```
+    The `n+1`th sentence is:
+    ```
+    {sentence}
+    ```
+    Return the rewritten sentence between ``` ... ```.
+  build_contextual_prompt: |
+    Consider the following conversation history between a user and an assistant:
+    ```
+    {conversation_history}
+    ```
+
+    Rewrite the current/last question, taking into account the previous
+    conversation context. The rewritten question should be clear and
+    self-contained: it should be easy to understand without needing to
+    refer to earlier turns in the conversation.
+    
+    You must enclose your rewritten question in backticks, like this,
+    with the opening and closing backticks on separate lines:
+    ```
+    ...
+    ```
+  generate_q_and_a: |
+      Consider the following document:
+
+      ```
+      {document}
+      ```
+
+      I want you to generate a question and an answer. The question should be
+      something that a reasonable person would expect to ask of the given
+      document. The answer should be the correct answer to that question.
+      Your reply should use <question>...</question> for the question
+      and <answer>...</answer> for the answer to that question in the context
+      of the above document.
+
+      For example, if the document is "Diabetes is a common disease" then one
+      possible response would be
+
+      <question>Is diabetes a disease?</question>
+      <answer>Yes, diabetes is a disease</answer>
+
+      Another would be
+
+      <question>Is diabetes common?</question>
+      <answer>Yes, diabetes is a common disease</answer>
+      {prev_q_str}
+  # --- kiro-cli theory engine (kiro_formalizer.py) ---------------------------
+  # Standing instructions for the kiro-cli agent. One agent session builds the
+  # theory of a whole document. Placeholders: {checker_cmd}.
+  kiro_agent_rules: |
+    You are an expert in first-order logic, SMT-LIBv2 and cvc5. You build
+    SMT-LIB theories that capture the knowledge in a set of sentences, and
+    you test them like programs.
+
+    Think of it this way: the program you are writing is an SMT-LIB script
+    (the theory, in `theory.smt2`). You "run" it with cvc5. The questions and
+    expected answers in `test_set.json` are the test suite that decides
+    whether the program is correct: the theory must be VALID (cvc5 says it is
+    satisfiable) and USEFUL (it answers enough of the test questions
+    correctly).
+
+    ## The cvc5 checker
+
+    Never call cvc5 directly. Use exactly this command (it is the only shell
+    command you are allowed to run):
+
+        {checker_cmd} check theory.smt2
+            Is the theory on its own satisfiable?
+        {checker_cmd} ask theory.smt2 fragments/<id>.smt2 [fragments/<id>.smt2 ...]
+            Run the theory with each question fragment appended (up to 50
+            fragments per command).
+
+    It prints one line of JSON per theory or fragment with "validity" (SAT,
+    UNSAT, UNKNOWN, ERROR or TIMEOUT), and "detail" (cvc5's error message)
+    when it is not SAT; with several fragments each line also names its
+    "fragment". For a
+    SAT `ask` it also prints "values": the model's values for the symbols
+    your fragment declares (the question's unknowns), followed by the
+    theory's named constants that have the same value, so you can read an
+    abstract value like `@Plant_0` as the constant it is. If no named
+    constant has that value, the theory does not pin the answer down. The
+    checker adds (set-logic ...), (check-sat) and (get-model) itself, so do
+    not put those in theory.smt2 or in fragments.
+
+    Keep each turn small: write and ask a batch of about 20 fragments at a
+    time rather than all of them in one go.
+
+    ## How to answer one test question
+
+    1. Convert the natural-language question into a first-order logic
+       fragment, in the context of the theory, and write it to
+       `fragments/<id>.smt2`. Declare the unknown(s) the question asks for
+       (for example `(declare-const answer Plant)`) and assert only the
+       conditions the question itself states, using the theory's sorts,
+       constants and predicates. If the fragment is satisfiable, the model
+       must be an answer to the question.
+       The fragment must NOT assert the expected answer, must NOT add facts
+       about the world, and must NOT redeclare symbols the theory declares.
+    2. Run `{checker_cmd} ask theory.smt2 fragments/<id>.smt2` (or a batch of
+       fragments) to find out whether theory + fragment is satisfiable.
+    3. Convert the result into natural language:
+       - if it is not SAT, the answer is exactly `I don't know`;
+       - if it is SAT, read the answer off the "values". Base it ONLY on
+         them and the theory, never on your own general knowledge. If they
+         do not actually pin down what was asked (no value, or a value no
+         named constant has), the answer is exactly `I don't know`. Do not
+         mention cvc5 or logic in the answer.
+    4. Act as an impartial judge (LLM-as-a-judge): is your answer
+       semantically equivalent to the expected answer? Be strict and honest.
+       An `I don't know` is never correct.
+
+    ## Modelling guidance
+
+    - Make predicates general-purpose and reusable: prefer
+      `(is-medication-for med disease)` over `(is-anti-diabetic-medication med)`.
+    - Use one sort per kind of thing (for example `(declare-sort Disease 0)`)
+      and unary predicates like `(is-diabetes d)` for membership.
+    - Don't fuse attributes into one predicate: write
+      `(and (is-biomarker b) (is-sustained b))`, not `(is-biomarker-sustained b)`.
+    - For single-valued numeric attributes (a population, a year, a count, a
+      price, a percentage) use an interpreted `define-fun` with equality, so
+      the value is pinned, for example:
+          (define-fun has-population-size ((c Country) (n Int)) Bool
+            (or (and (= c new-zealand) (= n 5300000))
+                (and (= c australia) (= n 26000000))))
+      A bare declared relation lets the solver pick any value.
+    - Avoid quantifiers wherever you can: they make cvc5 return UNKNOWN or
+      time out. Keep the theory quantifier-free and as short as possible.
+    - Every assertion must be supported by the sentences. Never add a fact
+      just to make a test question pass if the sentences don't state it.
+
+    ## Rules
+
+    - Work only in the current directory. Do not modify `sentences.txt`,
+      `test_set.json` or any input theory.
+    - A fix for one question can break another. After a change, re-run the
+      questions it could affect; before you finish, re-run the WHOLE test
+      set, in batches, against the final theory.
+    - When you finish, `answers.json` must describe the evaluation of the
+      FINAL theory.smt2, as a JSON list with one object per test question:
+          [{{"id": "q1", "fragment": "fragments/q1.smt2",
+            "validity": "SAT", "answer": "...", "correct": true}}, ...]
+    - Finish your last message with `DONE` if the theory meets the target,
+      or `GAVE UP` if you could not reach it after a real effort (still
+      leave your best valid theory and its answers.json).
+
+  # The build task. Placeholders: {n_sentences}, {n_required}, {n_total},
+  # {percent}.
+  kiro_task: |
+    Create an SMT-LIB script, `theory.smt2`, that encodes in first-order
+    logic the knowledge in ALL {n_sentences} sentences in `sentences.txt`
+    (one per line, in document order). It is a whole document, so:
+
+    - Read all of it first and design one shared vocabulary: the sorts,
+      constants and predicates the whole document needs, so that the same
+      thing is always represented the same way.
+    - Then build the theory up in sections, a part of the document at a
+      time, checking `check theory.smt2` reports SAT as you go. Use comments
+      to mark the sections.
+    - Keep it as simple as possible, and do not duplicate logic.
+
+    Then test it: answer every question in `test_set.json` using the four
+    steps in your instructions, and judge each answer against its expected
+    answer. If at least {n_required} of the {n_total} questions ({percent}%)
+    are answered correctly, you are done: this is a good theory of the
+    document. Otherwise revise the theory and test again.
+
+    Write `answers.json` for the final theory before you finish.
+
+  # Sent to resume a session the stall watchdog killed after it produced no
+  # output for too long. Placeholders: {report}, {idle_minutes}.
+  kiro_stall_nudge: |
+    Your previous turn produced no output for {idle_minutes} minutes, so it
+    was stopped. Your files are exactly as you left them.
+
+    Continue from where you stopped, in small steps: write and ask about
+    20 fragments at a time, and do not rewrite large files in one go when a
+    small edit will do. My independent check of what is there now:
+
+    {report}
+
+    Finish the task, rewrite answers.json for the final theory, and end with
+    DONE or GAVE UP.
+
+  # Sent when the harness's independent check of the agent's work fails, to
+  # resume the same kiro-cli session. Placeholders: {report}.
+  kiro_verification_feedback: |
+    I independently re-checked your theory.smt2 and answers.json and the
+    result does not meet the target yet:
+
+    {report}
+
+    Fix the theory (or your fragments/answers), re-run the whole test set,
+    rewrite answers.json for the final theory, and end with DONE or GAVE UP.
+fhir:
+  generate_q_and_a: |
+      Consider the following HL7 FHIR document that represents
+      subsets of one or more patient's medical records:
+
+      ```
+      {document}
+      ```
+
+      I want you to generate a question and an answer. The question should be
+      something that a reasonable person would expect to ask of the given
+      medical record. The answer should be the correct answer to that question.
+      
+      You cannot answer that the patient refuses to answer the question.
+
+      Your reply should use <question>...</question> for the question
+      and <answer>...</answer> for the answer to that question in the context
+      of the above document.
+
+      For example, one possible response could be
+
+      <question>What is the patient's name?</question>
+      <answer>Jane Doe</answer>
+
+      Another could be (if the given snippet of the patient's medical
+      record was sufficient to answer the question):
+
+      <question>Does the patient have hypertension?</question>
+      <answer>Yes, the patient has hypertension</answer>
+      {prev_q_str}
+  generate_q_and_a_multiple_subjects: |
+      Consider the following HL7 FHIR document that represents
+      subsets from multiple patient's medical records:
+
+      ```
+      {document}
+      ```
+
+      I want you to generate a question and an answer. The question should be
+      something that a reasonable person would expect to ask of the given
+      medical records. The answer should be the correct answer to that question.
+      Your reply should use <question>...</question> for the question
+      and <answer>...</answer> for the answer to that question in the context
+      of the above document. Also, the question must specify which patient
+      the question is being asked of. For example, the question "What is the
+      patient's age?" is not an appropriate question. The question "What is
+      Jane42 Doe47's age" is an appropriate question
+
+      If the patient refused to answer the question, say that.
+
+      For example, one possible response could be
+
+      <question>What is Jane42 Doe47's age?</question>
+      <answer>The patient is 62 years old</answer>
+
+      Another could be (if the given snippet of the patient's medical
+      record was sufficient to answer the question):
+
+      <question>Does Jane42 Doe47 have hypertension?</question>
+      <answer>Yes, she has hypertension</answer>
+      {prev_q_str}

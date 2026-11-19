@@ -1,0 +1,286 @@
+duration: 279.12429642677307
+ecs_cost: 0.033598691408721085
+ecs_task_id: e926ad661bcf48ecb54bb57124e8e28b
+error_mesg: null
+input_data:
+  execution_id: diabetes-full-fixed-items
+  first_idx: 146
+  layer: 1
+  p_in_s3: s3://example-results-bucket/results/diabetes-full-fixed-items/p_in_s3//c794c836-d24d-43e3-9fcd-96e520569535.yaml
+  summary_file: s3://example-results-bucket/results/diabetes-full-fixed-items/layer/0/summary.yaml
+p:
+  chunks_prefix: results/{execution_id}/chunks/
+  do_layer_0_only: false
+  do_profile: false
+  error_dumps_prefix: result/{execution_id}/error_dumps/
+  execution_id: diabetes-full-fixed-items
+  fhir_nqas_multiplier: 2
+  l0:
+    load_sentences_fn_name: load_sentences_for_subject
+    max_iterations_for_usefulness: 20
+    num_chunks: null
+    outer_pool_size: 1
+    sentences_per_chunk: 5
+    start_idx: 0
+    stride: 2
+    subject_ids:
+    - diabetes
+  l1p:
+    max_iterations_for_usefulness: 20
+    outer_pool_size: 1
+    prev_layer_run_file: null
+    this_layer_num: null
+  n_q_and_as_schedule_name: n_q_and_as_schedule
+  ncar_ratio: 0.6
+  ncar_schedule_name: ncar_schedule
+  p_in_s3_prefix: results/{execution_id}/p_in_s3/
+  pool_size: null
+  pool_size_fn_name: layer_pool_size
+  results_bucket: example-results-bucket
+  results_prefix: results/{execution_id}/layer/{layer}/{task_id}.yaml
+result:
+  all_qs_and_as:
+  - - What are the recommended initial treatments for type 2 diabetes in children?
+    - The recommended initial treatments for type 2 diabetes in children are adoption of healthy lifestyle practices and metformin medication.
+  - - What are the diagnostic criteria for type 2 diabetes in children?
+    - The diagnostic criteria for type 2 diabetes in children include plasma blood glucose of more than 200 mg per deciliter or a fasting blood glucose above 126 mg per deciliter in children with overt symptoms.
+  - - At what age does screening for type 2 diabetes typically begin in children?
+    - Screening for type 2 diabetes typically starts at 10 years old for obese children and those who have at least two risk factors for developing type 2 diabetes.
+  - - Why is early recognition and screening important for children with diabetes?
+    - Early recognition and screening are important to prevent long-term disease complications in children with diabetes.
+  - - What tests can help differentiate between type 1 and type 2 diabetes in children?
+    - Tests that can help differentiate between type 1 and type 2 diabetes in children include assessment of fasting blood insulin or C-peptide, or determination of autoantibodies for type 1 diabetes.
+  - - What is the role of the family in managing diabetes for children with type 2 diabetes?
+    - The family must be committed and continuous in their integration with the health care team to promote self-management in pediatric diabetes patients, and work together with the health care team to empower the child to make informed decisions for health-promoting lifestyle choices.
+  - - What are the criteria for using insulin in children with type 2 diabetes?
+    - Insulin is used for children with type 2 diabetes who have a blood glucose of more than 250 mg per dl and a HbA1C greater than 8.5%.
+  - - What is the goal of the health care team and family in managing pediatric diabetes?
+    - The goal is to empower the child to make informed decisions for health-promoting lifestyle choices.
+  - - Who are the potential members of a health care team for managing pediatric diabetes?
+    - A health care team for managing pediatric diabetes may include a pediatric endocrinologist or physician trained in pediatric diabetes, a diabetes specialist nurse, a registered dietitian, a psychologist, a social worker, and child life specialist.
+  - - What is the typical starting dose of Metformin for children diagnosed with type 2 diabetes?
+    - The typical starting dose is 500 mg per day upon diagnosis of type 2 diabetes in children.
+  correctly_answered_questions:
+  - What are the recommended initial treatments for type 2 diabetes in children?
+  - What is the role of the family in managing diabetes for children with type 2 diabetes?
+  - Who are the potential members of a health care team for managing pediatric diabetes?
+  - Why is early recognition and screening important for children with diabetes?
+  - What is the goal of the health care team and family in managing pediatric diabetes?
+  - What are the criteria for using insulin in children with type 2 diabetes?
+  n_correct_answers_reqd: 6
+  sentences:
+  - Insulin is used for children with type 2 diabetes who have a blood glucose of more than 250 mg per dl and a HbA1C greater than 8.5%.
+  - A health care team for managing pediatric diabetes may include a pediatric endocrinologist or physician trained in pediatric diabetes, a diabetes specialist nurse, a registered dietitian, a psychologist, a social worker, and child life specialist.
+  - Diagnostic criteria for type 2 diabetes in children include plasma blood glucose of more than 200 mg per deciliter (dl) or a fasting blood glucose above 126 mg per dl in children with overt symptoms.
+  - Differentiating type 1 diabetes from type 2 diabetes may include assessment of fasting blood insulin or C-peptide, or determination of autoantibodies for type 1 diabetes.
+  - Early recognition, screening, treatment, and education of children with diabetes are needed to prevent long-term disease complications.
+  - Adoption of healthy lifestyle practices and metformin medication are recommended as initial treatments for type 2 diabetes in children.
+  - Metformin at 500 mg per day is used upon diagnosis of type 2 diabetes in children.
+  - "The goal of the health care team (which may include a pediatric endocrinologist or physician trained in pediatric diabetes, a diabetes specialist nurse, a registered dietitian, a psychologist, a social worker, and child life specialist) and the diabetic child's family is to empower the child to make informed decisions for health\u2010promoting lifestyle choices."
+  - Diabetes management for children requires the integration of the family and health care team to be committed and continuous for promotion of self-management in pediatric diabetes patients.
+  - Screening for type 2 diabetes typically starts at 10 years old for obese children and those who have at least two risk factors for developing type 2 diabetes.
+  theory: |-
+    (set-logic ALL)
+    (set-option :finite-model-find true)
+    (set-option :fmf-bound true)
+    ;; Sorts
+    (declare-sort Person 0)
+    (declare-sort Disease 0)
+    (declare-sort Intervention 0)
+    (declare-sort Medication 0)
+    (declare-sort Measurement 0)
+    (declare-sort Age 0)
+    (declare-sort Role 0)
+    (declare-sort Team 0)
+    (declare-sort Family 0)
+    ;; Person predicates
+    (declare-fun is-child (Person) Bool)
+    (declare-fun is-obese (Person) Bool)
+    (declare-fun age-of (Person) Age)
+    (declare-fun age-at-least (Age Int) Bool)
+    (declare-fun adopts-healthy-lifestyle (Person) Bool)
+    (declare-fun has-blood-glucose (Person Int) Bool)
+    (declare-fun has-hba1c (Person Real) Bool)
+    ;; Disease predicates
+    (declare-fun has-disease (Person Disease) Bool)
+    (declare-fun diagnosed-with (Person Disease) Bool)
+    (declare-fun has-overt-symptoms (Person Disease) Bool)
+    (declare-fun has-risk-factor (Person Disease) Bool)
+    (declare-fun is-diabetes (Disease) Bool)
+    (declare-fun is-type1-diabetes (Disease) Bool)
+    (declare-fun is-type2-diabetes (Disease) Bool)
+    (declare-fun is-complication-of (Disease Disease) Bool)
+    ;; Intervention predicates
+    (declare-fun is-recognition (Intervention) Bool)
+    (declare-fun is-screening (Intervention) Bool)
+    (declare-fun is-treatment (Intervention) Bool)
+    (declare-fun is-education (Intervention) Bool)
+    (declare-fun prevents (Intervention Disease) Bool)
+    (declare-fun is-needed-for (Intervention Person Disease) Bool)
+    ;; Measurement predicates
+    (declare-fun is-plasma-glucose (Measurement) Bool)
+    (declare-fun is-fasting-glucose (Measurement) Bool)
+    (declare-fun is-fasting-insulin (Measurement) Bool)
+    (declare-fun is-c-peptide (Measurement) Bool)
+    (declare-fun is-autoantibody (Measurement) Bool)
+    (declare-fun measurement-value (Measurement) Int)
+    (declare-fun is-diagnostic-for (Measurement Disease) Bool)
+    ;; Medication predicates
+    (declare-fun is-metformin (Medication) Bool)
+    (declare-fun is-insulin (Medication) Bool)
+    (declare-fun is-medication-for (Medication Disease) Bool)
+    (declare-fun is-recommended-treatment (Medication Person Disease) Bool)
+    (declare-fun uses-medication (Person Medication) Bool)
+    (declare-fun has-dosage (Medication Int) Bool)
+    (declare-fun is-recommended-for (Person Disease) Bool)
+    ;; Team and Family predicates
+    (declare-fun member-of (Person Team) Bool)
+    (declare-fun has-role (Person Role) Bool)
+    (declare-fun family-of (Family Person) Bool)
+    (declare-fun is-committed (Team) Bool)
+    (declare-fun is-committed-family (Family) Bool)
+    (declare-fun is-continuous (Team) Bool)
+    (declare-fun promotes-self-management (Team Person) Bool)
+    (declare-fun is-healthcare-team-for (Team Disease) Bool)
+    (declare-fun empowers-for-informed-decisions (Team Person) Bool)
+    (declare-fun empowers-for-informed-decisions-family (Family Person) Bool)
+    ;; Disease constants
+    (declare-const diabetes Disease)
+    (declare-const type1-diabetes Disease)
+    (declare-const type2-diabetes Disease)
+    (declare-const long-term-complication Disease)
+    ;; Medication constants
+    (declare-const metformin Medication)
+    (declare-const insulin Medication)
+    ;; Role constants
+    (declare-const pediatric-endocrinologist Role)
+    (declare-const physician-trained-in-pediatric-diabetes Role)
+    (declare-const diabetes-specialist-nurse Role)
+    (declare-const registered-dietitian Role)
+    (declare-const psychologist Role)
+    (declare-const social-worker Role)
+    (declare-const child-life-specialist Role)
+    ;; Team member constants
+    (declare-const team-member-1 Person)
+    (declare-const team-member-2 Person)
+    (declare-const team-member-3 Person)
+    (declare-const team-member-4 Person)
+    (declare-const team-member-5 Person)
+    (declare-const team-member-6 Person)
+    ;; Example instances
+    (declare-const example-team Team)
+    (declare-const example-family Family)
+    (declare-const example-child Person)
+    ;; Disease type assertions
+    (assert (is-diabetes diabetes))
+    (assert (and (is-diabetes type1-diabetes) (is-type1-diabetes type1-diabetes)))
+    (assert (and (is-diabetes type2-diabetes) (is-type2-diabetes type2-diabetes)))
+    (assert (is-complication-of long-term-complication diabetes))
+    ;; Medication type assertions
+    (assert (is-metformin metformin))
+    (assert (is-insulin insulin))
+    ;; Prevention of complications through interventions
+    (assert (forall ((p Person) (i Intervention))
+      (=> (and (is-child p)
+               (has-disease p diabetes)
+               (or (is-recognition i) (is-screening i) (is-treatment i) (is-education i))
+               (is-needed-for i p diabetes))
+          (prevents i long-term-complication))))
+    ;; Screening requirements for at-risk children
+    (assert (forall ((p Person) (i Intervention))
+      (=> (and (is-child p)
+               (age-at-least (age-of p) 10)
+               (or (is-obese p)
+                   (has-risk-factor p type2-diabetes))
+               (is-screening i))
+          (is-needed-for i p type2-diabetes))))
+    ;; Diagnostic criteria - plasma glucose
+    (assert (forall ((p Person) (m Measurement))
+      (=> (and (is-child p)
+               (is-plasma-glucose m)
+               (> (measurement-value m) 200)
+               (has-overt-symptoms p type2-diabetes))
+          (is-diagnostic-for m type2-diabetes))))
+    ;; Diagnostic criteria - fasting glucose
+    (assert (forall ((p Person) (m Measurement))
+      (=> (and (is-child p)
+               (is-fasting-glucose m)
+               (> (measurement-value m) 126)
+               (has-overt-symptoms p type2-diabetes))
+          (is-diagnostic-for m type2-diabetes))))
+    ;; Diagnostic criteria for type 1 diabetes
+    (assert (forall ((m Measurement))
+      (=> (or (is-fasting-insulin m) (is-c-peptide m))
+          (is-diagnostic-for m type1-diabetes))))
+    (assert (forall ((m Measurement))
+      (=> (is-autoantibody m)
+          (is-diagnostic-for m type1-diabetes))))
+    ;; Treatment recommendations - metformin
+    (assert (forall ((p Person))
+      (=> (and (is-child p)
+               (has-disease p type2-diabetes)
+               (or (diagnosed-with p type2-diabetes) (has-disease p type2-diabetes)))
+          (is-recommended-treatment metformin p type2-diabetes))))
+    ;; Lifestyle recommendations
+    (assert (forall ((p Person))
+      (=> (and (is-child p)
+               (has-disease p type2-diabetes)
+               (adopts-healthy-lifestyle p))
+          (is-recommended-for p type2-diabetes))))
+    ;; Metformin initial dosage for diagnosed children
+    (assert (=> (and (is-child example-child)
+                     (diagnosed-with example-child type2-diabetes))
+                (and (uses-medication example-child metformin)
+                     (has-dosage metformin 500))))
+    ;; Insulin for children with high glucose and HbA1c
+    (assert (=> (and (is-child example-child)
+                     (has-disease example-child type2-diabetes)
+                     (has-blood-glucose example-child 260)
+                     (has-hba1c example-child 9.0))
+                (uses-medication example-child insulin)))
+    ;; Team-based care promotes self-management
+    (assert (=> (and (is-child example-child)
+                     (has-disease example-child type2-diabetes)
+                     (is-healthcare-team-for example-team type2-diabetes)
+                     (family-of example-family example-child)
+                     (is-committed example-team)
+                     (is-committed-family example-family)
+                     (is-continuous example-team))
+                (promotes-self-management example-team example-child)))
+    ;; Healthcare team structure
+    (assert (is-healthcare-team-for example-team type2-diabetes))
+    (assert (member-of team-member-1 example-team))
+    (assert (or (has-role team-member-1 pediatric-endocrinologist)
+                (has-role team-member-1 physician-trained-in-pediatric-diabetes)))
+    (assert (member-of team-member-2 example-team))
+    (assert (has-role team-member-2 diabetes-specialist-nurse))
+    (assert (member-of team-member-3 example-team))
+    (assert (has-role team-member-3 registered-dietitian))
+    (assert (member-of team-member-4 example-team))
+    (assert (has-role team-member-4 psychologist))
+    (assert (member-of team-member-5 example-team))
+    (assert (has-role team-member-5 social-worker))
+    (assert (member-of team-member-6 example-team))
+    (assert (has-role team-member-6 child-life-specialist))
+    ;; Team and family empowerment
+    (assert (=> (and (is-child example-child)
+                     (has-disease example-child type2-diabetes)
+                     (is-healthcare-team-for example-team type2-diabetes)
+                     (family-of example-family example-child))
+                (and (empowers-for-informed-decisions example-team example-child)
+                     (empowers-for-informed-decisions-family example-family example-child))))
+    (check-sat)
+stats:
+  agent_durations: [3.593, 3.449, 3.754, 5.621, 3.218, 4.187, 4.158, 4.266, 4.297, 3.816, 3.901, 4.368, 3.881, 4.904, 5.814, 3.246, 5.026, 4.217, 5.223, 5.128, 4.437, 4.189, 3.471, 4.277, 4.001, 3.603, 3.335, 3.519, 3.338, 3.681, 3.942, 3.98, 1.97, 3.834, 2.961, 18.763, 6.457, 5.152, 5.292, 7.026, 5.612, 5.956, 6.812, 6.196, 5.834, 4.841, 6.233, 4.721, 3.009, 5.945, 5.026, 6.14, 6.985, 6.849, 5.079, 5.558]
+  cvc5_durations: [0.020950794219970703, 0.022843360900878906, 0.022373437881469727, 0.021367549896240234, 0.021181344985961914, 0.02251458168029785, 0.023291826248168945, 0.02219367027282715, 0.023408889770507812]
+  cvc5_results:
+    Sat.SAT: 9
+  n_agent_inferences: 56
+  n_cvc5_calls: 9
+  n_inference_exceptions: 0
+  n_inferences: 56
+  n_input_tokens: [217, 216, 218, 214, 222, 214, 213, 215, 211, 219, 218, 215, 214, 216, 212, 220, 219, 216, 214, 213, 215, 211, 219, 218, 215, 216, 219, 218, 220, 216, 224, 223, 220, 221, 220, 2508, 2700, 4901, 239, 2704, 4961, 445, 2701, 4786, 4844, 338, 2697, 4832, 212, 2702, 4983, 277, 2701, 4837, 4898, 296]
+  n_malformed_theories: 0
+  n_output_tokens: [183, 148, 175, 242, 148, 192, 190, 182, 185, 177, 179, 187, 161, 251, 250, 67, 237, 177, 261, 258, 203, 204, 153, 176, 140, 168, 87, 136, 79, 144, 152, 161, 10, 138, 74, 2652, 367, 265, 279, 445, 311, 381, 479, 332, 367, 306, 398, 198, 100, 429, 249, 371, 547, 417, 283, 354]
+  n_throttled_inferences: 0
+  total_inference_cost: 0.432534

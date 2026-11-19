@@ -1,0 +1,71 @@
+version: 0.2
+
+# Deploy buildspec for a CodeBuild project dedicated to this repository.
+#
+# Builds the ARM64 Docker asset (cdk/docker/Dockerfile, context = repo root)
+# and runs `cdk deploy` for ProvablyCorrectChatbotStack. Run the project on
+# aws/codebuild/standard:7.0 with privilegedMode=true, so a real Docker daemon
+# and buildx (incl. QEMU for cross-arch) are available.
+#
+# Source is this repository; the clone is the whole git tree, so globals.py /
+# utils.py / cdk/** are all present at the paths fromAsset expects.
+#
+# Account/region come from the build's own credentials (the project's service
+# role) and the AWS_DEFAULT_REGION CodeBuild sets. The stack reads
+# CDK_DEFAULT_ACCOUNT / CDK_DEFAULT_REGION (bin/chatbot.ts); we export them
+# from STS + region so the env is explicit rather than relying on CDK's own
+# resolution.
+
+env:
+  variables:
+    # Image asset is ARM64 (cvc5 arm64 static binary); build it with buildx.
+    DOCKER_BUILDKIT: "1"
+    # CDK stack to deploy. Single stack; --all is equivalent but explicit is safer.
+    CDK_STACK: "ProvablyCorrectChatbotStack"
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      - node --version && npm --version
+      # CDK toolkit + app deps live under cdk/.
+      - cd cdk && npm ci && cd ..
+
+  pre_build:
+    commands:
+      # Make the target account/region explicit for the CDK app env block.
+      - export CDK_DEFAULT_REGION="${AWS_DEFAULT_REGION:-us-east-1}"
+      - export CDK_DEFAULT_ACCOUNT="$(aws sts get-caller-identity --query Account --output text)"
+      - echo "Deploying ${CDK_STACK} to account ${CDK_DEFAULT_ACCOUNT} region ${CDK_DEFAULT_REGION}"
+      # Enable cross/native ARM64 emulation so fromAsset(LINUX_ARM64) builds
+      # regardless of the CodeBuild host arch.
+      - docker run --rm --privileged public.ecr.aws/eks-distro-build-tooling/binfmt-misc:qemu-v7.0.0 --install all || true
+      - docker buildx create --use --name cdkbuilder || docker buildx use cdkbuilder
+
+  build:
+    commands:
+      - cd cdk
+      # CDK builds the Docker asset (repo-root context, cdk/docker/Dockerfile),
+      # pushes it to the account's cdk-assets ECR repo, then deploys the stack.
+      # --require-approval never: non-interactive. No --output override needed:
+      # the clone is a fresh tree, so cdk.out inside cdk/ does not recurse into
+      # an asset root (asset root is the repo root, cdk.out is under cdk/).
+      # Capture cdk deploy's real exit status and fail the phase on non-zero.
+      # Do NOT rely on $CODEBUILD_BUILD_SUCCEEDING in post_build — it reflects
+      # mid-finalization state at echo time, not the deploy's verdict, and
+      # printed a misleading "status 1" even on fully successful deploys.
+      - set +e; npx cdk deploy "$CDK_STACK" --require-approval never --ci; DEPLOY_RC=$?; set -e
+      - echo "cdk deploy exited with code ${DEPLOY_RC}"
+      - exit ${DEPLOY_RC}
+
+  post_build:
+    commands:
+      # $CODEBUILD_BUILD_SUCCEEDING is 1 on success / 0 on failure, but is only
+      # authoritative here (post_build), after the build phase has resolved.
+      - |
+        if [ "${CODEBUILD_BUILD_SUCCEEDING}" = "1" ]; then
+          echo "Deploy SUCCEEDED: ${CDK_STACK} is live."
+        else
+          echo "Deploy FAILED: ${CDK_STACK} did not complete (see BUILD phase logs)."
+        fi
