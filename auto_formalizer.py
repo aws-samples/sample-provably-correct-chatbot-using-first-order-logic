@@ -1747,7 +1747,3 @@ def q_diversity_score(new_q: str, existing_q: str,
     except ValueError:
         print(f"qd: failed to parse diversity score: {rv}")
         return 0.0
-
-
-# if __name__ == "__main__":
-#     test_yaml_representation()

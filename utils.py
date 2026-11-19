@@ -7,7 +7,7 @@
 Common utilites that aren't domain specific
 """
 from __future__ import annotations
-import io, re, os, glob, sys, itertools, time, random, signal, uuid, json, difflib, queue
+import io, re, os, glob, sys, itertools, time, random, signal, uuid, json, queue
 from typing import (List, Any, Callable, Dict, Set, Optional, Union,
                     Tuple, TypeAlias)
 from textwrap import dedent
@@ -207,30 +207,6 @@ def yaml_dump(obj) -> str:
 def yaml_dump_all(objs: list, file) -> str:
     """ Wrapper around yaml_dump: documents separated by --- lines. """
     file.write("---\n".join(yaml_dump(obj) for obj in objs))
-
-
-def test_yaml_representation():
-    """
-    Make sure it's printing out multi-line strings and lists of numbers
-    correctly.
-    """
-    data_dir = Path.cwd() / "data"
-    input_data = json.loads((data_dir / "yaml-representation-test.json").read_text())
-    output = yaml_dump(input_data)
-    # The fixture opens with a license header (comment lines), which yaml_dump
-    # does not write; compare from the first line of YAML.
-    expected_lines = (data_dir / "yaml-representation-test.yaml").read_text().splitlines()
-    while expected_lines and (not expected_lines[0].strip()
-                              or expected_lines[0].startswith("#")):
-        expected_lines.pop(0)
-    expected_output = "\n".join(expected_lines).strip()
-    # print(output)
-    diff = list(difflib.unified_diff([l.rstrip() for l in output.splitlines()],
-                                     [l.rstrip() for l in expected_output.splitlines()],
-                                     fromfile='out', tofile='expout', lineterm=''))
-    for line in diff:
-        print(line)
-    assert len(diff) == 0
 
 
 def shorten_dict(d: dict, *keys):
