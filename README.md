@@ -536,6 +536,10 @@ Each `Sentence` subclass has its own YAML tag (`!TextSentence`,
 type-specific context (standalone text for text, `patient_entries` for
 FHIR) in the run file.
 
+## Security
+
+See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for how to report a security issue.
+
 ## License
 
 This sample is licensed under the MIT-0 License (MIT No Attribution). See the [LICENSE](LICENSE) file. Every source file carries the matching `SPDX-License-Identifier: MIT-0` header.
